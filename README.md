@@ -8,6 +8,13 @@ All logic lives in `src/domain/` as pure TypeScript with no framework or
 browser dependencies, intended to be ported to Swift. Design decisions and
 known limits are recorded in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Trying it
+
+Click **Load sample week** in the header. It fills the grid with a mock week
+over the built-in recipes that exercises every rule at once: leftovers,
+advance prep, batch-prep suggestions, a unit conflict on the shopping list,
+recipes that run longer than the day allows, and one overloaded day.
+
 ## Using your own recipes
 
 The **recipes** tab shows the current recipe set as JSON. Edit or paste your

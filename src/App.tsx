@@ -13,6 +13,7 @@ import {
   type WeekSettings,
 } from './domain';
 import { SEED_RECIPES } from './data/seedRecipes';
+import { sampleWeekEntries, sampleWeekSettings } from './data/sampleWeek';
 import {
   clearRecipes,
   loadChecked,
@@ -66,6 +67,14 @@ export default function App() {
     clearRecipes();
     setRecipeList(SEED_RECIPES);
   }
+  function loadSampleWeek() {
+    setPlan((p) => ({
+      settings: { ...p.settings, ...sampleWeekSettings(), pantryStaples: p.settings.pantryStaples },
+      entries: sampleWeekEntries(),
+    }));
+    setChecked({});
+    setTab('plan');
+  }
   function resetWeek() {
     if (window.confirm('Remove every meal from this week?')) {
       setPlan((p) => ({ ...p, entries: [] }));
@@ -84,6 +93,10 @@ export default function App() {
             </button>
           ))}
         </nav>
+        <button type="button" onClick={loadSampleWeek} disabled={recipeList !== SEED_RECIPES}
+          title={recipeList !== SEED_RECIPES ? 'The sample week uses the built-in recipes' : undefined}>
+          Load sample week
+        </button>
         <button type="button" onClick={resetWeek}>
           Clear week
         </button>
