@@ -125,3 +125,13 @@ export function chooseDisplayUnit(baseAmount: number, preferred: Unit): Unit {
 export function fromBase(baseAmount: number, unit: Unit): Quantity {
   return { amount: baseAmount / toBaseFactor(unit), unit };
 }
+
+/**
+ * Count units describe whole things you buy (3 onions, 2 cans). Round a count
+ * quantity up to a whole number; volume and mass pass through unchanged.
+ * A tiny epsilon stops 2.0000000001 from becoming 3.
+ */
+export function ceilCount(q: Quantity): Quantity {
+  if (unitFamily(q.unit) !== 'count') return q;
+  return { amount: Math.ceil(q.amount - 1e-9), unit: q.unit };
+}

@@ -249,3 +249,48 @@ since the plan was saved.
 **Why.** The domain stays portable; storage format can change independently.
 
 **Known limits.** No migrations beyond defaulting new settings fields.
+
+## 19. Count items on the shopping list round up
+
+**Decision.** After merging, any item whose unit is a count unit (each, can,
+clove, bunch, ...) has its amount rounded up to a whole number with
+`ceilCount`. Volume and mass are never rounded in the domain. Each item's
+`sources` keep the exact scaled amounts. Batch-prep descriptions use the same
+rounding.
+
+**Why.** Scaling a 4-serving recipe to 3 produces 0.75 onions. You buy one
+onion. A list that says 2.08 onions is wrong in a way the shopper has to fix
+by hand every time.
+
+**Known limits.** Rounding happens per merged line, so two recipes needing
+0.5 onion each correctly produce 1, but 0.5 "yellow onion" and 0.5 "onion"
+(different names) produce 2. An epsilon of 1e-9 keeps float noise such as
+2.0000000001 from rounding to 3.
+
+## 20. Recipes are user data and are validated on the way in
+
+**Decision.** `validateRecipe(value)` checks an untrusted value field by field
+and returns warnings with `recipe-*` codes: id, name, positive baseServings,
+non-negative times with total >= active, at least one ingredient, each
+ingredient's name, positive amount, known unit, known section, optional
+string prep, and each advance-prep step's id, description, integer
+leadDays >= 1 and non-negative activeMinutes. `parseRecipes(text)` parses
+JSON, requires an array, runs validateRecipe on each element, rejects
+duplicate ids, and is all-or-nothing: any warning means zero recipes are
+returned. A missing `advancePrep` is filled as `[]`.
+
+The UI edits recipes as JSON in a text area and stores the accepted list
+under `forkcast.recipes.v1`. When nothing is stored, or the stored text no
+longer validates, the built-in seed recipes are used. Plan entries that point
+at a recipe that no longer exists are already reported as `unknown-recipe`
+and ignored by shopping and scheduling (decision 16).
+
+**Why.** The prototype exists to validate logic against real recipes, and
+real recipes have to come from somewhere. JSON is the smallest editor that
+works and matches the data contract exactly. All-or-nothing import means the
+recipe set is always fully valid, so no downstream function needs to defend
+against a half-formed recipe.
+
+**Known limits.** No form-based editor. No partial import. Validation does
+not check that ingredient names are consistent across recipes; that is the
+matching problem in decision 9.

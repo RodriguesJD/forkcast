@@ -49,7 +49,27 @@ describe('buildShoppingList', () => {
     const beef = allItems(list).find((i) => i.name === 'ground beef')!;
     expect(beef.quantity).toEqual({ amount: 2, unit: 'lb' });
     const onion = allItems(list).find((i) => i.name.toLowerCase() === 'yellow onion')!;
-    expect(onion.quantity.amount).toBeCloseTo(2.5, 10);
+    // 2 + 0.5 onions: you buy whole onions, so the list says 3. Sources keep the exact amounts.
+    expect(onion.quantity).toEqual({ amount: 3, unit: 'each' });
+    expect(onion.sources.map((s) => s.quantity.amount)).toEqual([2, 0.5]);
+  });
+
+  it('rounds count items up but never volume or mass', () => {
+    const a = recipe({ id: 'a', baseServings: 3, ingredients: [ing('lime', 1, 'each'), ing('oil', 1, 'tbsp'), ing('beef', 1, 'lb')] });
+    const list = buildShoppingList(plan([cook('a', 0, 1)]), index(a));
+    const by = Object.fromEntries(allItems(list).map((i) => [i.name, i.quantity]));
+    expect(by.lime).toEqual({ amount: 1, unit: 'each' });
+    expect(by.oil.amount).toBeCloseTo(1, 10); // 1/3 tbsp = 1 tsp
+    expect(by.oil.unit).toBe('tsp');
+    expect(by.beef.amount).toBeCloseTo(16 / 3, 10);
+    expect(by.beef.unit).toBe('oz');
+  });
+
+  it('does not round an exact whole count up by float noise', () => {
+    const a = recipe({ id: 'a', baseServings: 3, ingredients: [ing('egg', 1, 'each')] });
+    const b = recipe({ id: 'b', baseServings: 3, ingredients: [ing('egg', 2, 'each')] });
+    const list = buildShoppingList(plan([cook('a', 0, 1), cook('b', 1, 1)]), index(a, b));
+    expect(allItems(list)[0].quantity.amount).toBe(1);
   });
 
   it('keeps incompatible units separate and flags both', () => {

@@ -8,6 +8,13 @@ All logic lives in `src/domain/` as pure TypeScript with no framework or
 browser dependencies, intended to be ported to Swift. Design decisions and
 known limits are recorded in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+## Using your own recipes
+
+The **recipes** tab shows the current recipe set as JSON. Edit or paste your
+own, click **Apply**, and the whole list is validated before anything changes.
+The shape and the allowed units and sections are listed on that tab. Recipes
+are saved in the browser; **Restore built-in recipes** brings back the seed set.
+
 ## Run
 
 ```sh
@@ -21,7 +28,7 @@ npm run build
 ## Layout
 
 ```
-src/domain/     pure domain logic + tests (types, units, recipes, plan, shopping, schedule)
+src/domain/     pure domain logic + tests (types, units, recipes, plan, shopping, schedule, recipeImport)
 src/data/       seed recipes
 src/storage/    localStorage adapter (only module that touches window)
 src/ui/         plain React views: week grid, shopping list, schedule, settings

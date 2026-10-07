@@ -145,13 +145,29 @@ export type WarningCode =
   // schedule
   | 'day-overloaded'
   | 'recipe-too-long'
-  | 'prep-before-week';
+  | 'prep-before-week'
+  // recipe validation / import
+  | 'recipe-not-json'
+  | 'recipe-not-array'
+  | 'recipe-not-object'
+  | 'recipe-missing-id'
+  | 'recipe-duplicate-id'
+  | 'recipe-missing-name'
+  | 'recipe-invalid-servings'
+  | 'recipe-invalid-time'
+  | 'recipe-no-ingredients'
+  | 'recipe-invalid-ingredient'
+  | 'recipe-invalid-unit'
+  | 'recipe-invalid-quantity'
+  | 'recipe-invalid-section'
+  | 'recipe-invalid-prep-step';
 
 export interface Warning {
   code: WarningCode;
   message: string;
   entryId?: string;
   dayIndex?: number;
+  recipeId?: string;
 }
 
 // ---------- shopping ----------

@@ -1,5 +1,6 @@
-import type { WeekPlan } from '../domain/types';
+import type { Recipe, WeekPlan } from '../domain/types';
 import { defaultSettings } from '../domain/defaults';
+import { parseRecipes } from '../domain/recipeImport';
 
 /**
  * The only module that touches `window`. Persists the plan and the shopping
@@ -8,6 +9,7 @@ import { defaultSettings } from '../domain/defaults';
 
 const PLAN_KEY = 'forkcast.plan.v1';
 const CHECKED_KEY = 'forkcast.checked.v1';
+const RECIPES_KEY = 'forkcast.recipes.v1';
 
 function safeGet(key: string): string | null {
   try {
@@ -58,6 +60,26 @@ export function loadChecked(): Record<string, boolean> {
 
 export function saveChecked(checked: Record<string, boolean>): void {
   safeSet(CHECKED_KEY, JSON.stringify(checked));
+}
+
+/** Saved recipes, or null when none are saved or the saved text no longer validates. */
+export function loadRecipes(): Recipe[] | null {
+  const raw = safeGet(RECIPES_KEY);
+  if (!raw) return null;
+  const result = parseRecipes(raw);
+  return result.warnings.length === 0 ? result.recipes : null;
+}
+
+export function saveRecipes(recipes: Recipe[]): void {
+  safeSet(RECIPES_KEY, JSON.stringify(recipes));
+}
+
+export function clearRecipes(): void {
+  try {
+    window.localStorage.removeItem(RECIPES_KEY);
+  } catch {
+    // ignore
+  }
 }
 
 export function newId(): string {

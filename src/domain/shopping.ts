@@ -12,7 +12,7 @@ import type {
   Warning,
   WeekPlan,
 } from './types';
-import { chooseDisplayUnit, fromBase, toBase, unitFamily } from './units';
+import { ceilCount, chooseDisplayUnit, fromBase, toBase, unitFamily } from './units';
 
 /** Walking order through a typical grocery store. */
 export const STORE_SECTION_ORDER: readonly StoreSection[] = [
@@ -153,8 +153,9 @@ export function buildShoppingList(plan: WeekPlan, recipes: RecipeIndex): Shoppin
   };
 }
 
+/** Sum in a display unit; count items are rounded up because you buy whole ones. */
 function displayQuantity(baseTotal: number, preferred: Unit): Quantity {
-  return fromBase(baseTotal, chooseDisplayUnit(baseTotal, preferred));
+  return ceilCount(fromBase(baseTotal, chooseDisplayUnit(baseTotal, preferred)));
 }
 
 /** Flat list of all items, for tests and simple views. */

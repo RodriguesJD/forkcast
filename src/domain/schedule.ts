@@ -12,7 +12,7 @@ import type {
   Warning,
   WeekPlan,
 } from './types';
-import { add, chooseDisplayUnit, fromBase, toBase } from './units';
+import { add, ceilCount, chooseDisplayUnit, fromBase, toBase } from './units';
 
 /**
  * Flat estimate for one batch-prep item. No per-ingredient prep times exist
@@ -196,7 +196,7 @@ export function suggestBatchPrep(plan: WeekPlan, recipes: RecipeIndex): BatchPre
 }
 
 function formatAmount(q: Quantity): string {
-  const display = fromBase(toBase(q), chooseDisplayUnit(toBase(q), q.unit));
+  const display = ceilCount(fromBase(toBase(q), chooseDisplayUnit(toBase(q), q.unit)));
   const rounded = Math.round(display.amount * 100) / 100;
   return `${rounded} ${display.unit}`;
 }

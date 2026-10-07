@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Quantity } from './types';
 import {
   add,
+  ceilCount,
   canMerge,
   chooseDisplayUnit,
   convert,
@@ -144,5 +145,22 @@ describe('fromBase', () => {
     const q = { amount: 1.25, unit: 'lb' as const };
     expect(fromBase(toBase(q), 'lb').amount).toBeCloseTo(1.25, 12);
     expect(fromBase(toBase(q), 'oz').amount).toBeCloseTo(20, 12);
+  });
+});
+
+describe('ceilCount', () => {
+  it('rounds count units up to whole items', () => {
+    expect(ceilCount({ amount: 2.08, unit: 'each' })).toEqual({ amount: 3, unit: 'each' });
+    expect(ceilCount({ amount: 0.5, unit: 'bunch' })).toEqual({ amount: 1, unit: 'bunch' });
+    expect(ceilCount({ amount: 3, unit: 'clove' })).toEqual({ amount: 3, unit: 'clove' });
+  });
+
+  it('ignores float noise just above a whole number', () => {
+    expect(ceilCount({ amount: 2 + 1e-12, unit: 'can' }).amount).toBe(2);
+  });
+
+  it('leaves volume and mass alone', () => {
+    expect(ceilCount({ amount: 2.08, unit: 'cup' })).toEqual({ amount: 2.08, unit: 'cup' });
+    expect(ceilCount({ amount: 0.4, unit: 'lb' })).toEqual({ amount: 0.4, unit: 'lb' });
   });
 });
