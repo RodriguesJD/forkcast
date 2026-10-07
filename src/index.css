@@ -1,0 +1,59 @@
+:root {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: #1a1a1a;
+  background: #fafafa;
+  line-height: 1.4;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+button { font: inherit; cursor: pointer; }
+input, select { font: inherit; }
+
+.app { max-width: 1200px; margin: 0 auto; padding: 16px; }
+.app header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.app header h1 { margin: 0; font-size: 1.4rem; }
+.tabs button { background: none; border: 1px solid #ccc; padding: 6px 12px; margin-right: 4px; border-radius: 4px; }
+.tabs button.active { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+
+.warnings { margin: 8px 0 16px; padding: 8px 12px; background: #fff7e0; border: 1px solid #f0d58c; border-radius: 4px; }
+.warnings li { margin: 2px 0; }
+.warnings code { font-size: 0.8em; color: #666; }
+
+table.grid { border-collapse: collapse; width: 100%; }
+table.grid th, table.grid td { border: 1px solid #ddd; padding: 6px; vertical-align: top; }
+table.grid th { background: #f0f0f0; text-align: left; }
+table.grid td.slot { min-width: 150px; }
+table.grid .cell { display: flex; flex-direction: column; gap: 4px; }
+table.grid .cell select { width: 100%; }
+table.grid .cell .meta { display: flex; gap: 4px; align-items: center; font-size: 0.85em; }
+table.grid .cell .meta input { width: 56px; }
+table.grid .cell .leftover { color: #555; font-style: italic; font-size: 0.9em; }
+table.grid .cell .warn { color: #a05a00; font-size: 0.8em; }
+table.grid .cell .load { font-size: 0.75em; color: #777; }
+table.grid .cell .load.over { color: #b00020; font-weight: 600; }
+
+.shopping section { margin-bottom: 16px; }
+.shopping h3 { margin: 0 0 4px; text-transform: capitalize; }
+.shopping ul { list-style: none; padding: 0; margin: 0; }
+.shopping li { padding: 4px 0; display: flex; gap: 8px; align-items: baseline; }
+.shopping li.checked span.name { text-decoration: line-through; color: #999; }
+.shopping .sources { font-size: 0.8em; color: #777; }
+.shopping .conflict { color: #b00020; font-size: 0.8em; }
+.shopping .staples { color: #666; font-size: 0.9em; }
+
+.schedule .day { margin-bottom: 16px; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; background: #fff; }
+.schedule .day.over { border-color: #b00020; }
+.schedule .day h3 { margin: 0 0 6px; display: flex; justify-content: space-between; }
+.schedule .day h3 .load { font-weight: normal; font-size: 0.85em; color: #666; }
+.schedule .day h3 .load.over { color: #b00020; }
+.schedule ul { margin: 0; padding-left: 20px; }
+.schedule li.prep { color: #444; }
+.schedule li.batch { color: #2a6; }
+.schedule .empty { color: #999; font-style: italic; }
+
+.settings label { display: block; margin: 8px 0; }
+.settings input[type='number'] { width: 70px; }
+.settings .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.settings .days label { display: flex; flex-direction: column; font-size: 0.85em; }
+.settings textarea { width: 100%; min-height: 80px; font: inherit; }
+.muted { color: #777; font-size: 0.9em; }
