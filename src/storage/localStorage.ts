@@ -1,13 +1,15 @@
-import type { WeekPlan } from '../domain/types';
+import type { Recipe, RecipeLibrary, WeekPlan } from '../domain/types';
 import { defaultSettings } from '../domain/defaults';
+import { emptyLibrary } from '../domain/library';
 
 /**
- * The only module that touches `window`. Persists the plan and the shopping
- * checkbox state. Domain code never imports this.
+ * The only module that touches `window`. Persists the plan, the recipe
+ * library and the shopping checkbox state. Domain code never imports this.
  */
 
 const PLAN_KEY = 'forkcast.plan.v1';
 const CHECKED_KEY = 'forkcast.checked.v1';
+const LIBRARY_KEY = 'forkcast.recipes.v1';
 
 function safeGet(key: string): string | null {
   try {
@@ -58,6 +60,35 @@ export function loadChecked(): Record<string, boolean> {
 
 export function saveChecked(checked: Record<string, boolean>): void {
   safeSet(CHECKED_KEY, JSON.stringify(checked));
+}
+
+function isRecipeShaped(value: unknown): value is Recipe {
+  if (!value || typeof value !== 'object') return false;
+  const r = value as Partial<Recipe>;
+  return typeof r.id === 'string' && typeof r.name === 'string' && Array.isArray(r.ingredients);
+}
+
+/** Loads the recipe library; anything malformed is dropped rather than crashing the app. */
+export function loadLibrary(): RecipeLibrary {
+  const raw = safeGet(LIBRARY_KEY);
+  if (!raw) return emptyLibrary();
+  try {
+    const parsed = JSON.parse(raw) as Partial<RecipeLibrary>;
+    const recipes = Array.isArray(parsed?.recipes) ? parsed.recipes.filter(isRecipeShaped) : [];
+    const archivedIds = Array.isArray(parsed?.archivedIds)
+      ? parsed.archivedIds.filter((id): id is string => typeof id === 'string')
+      : [];
+    return {
+      recipes: recipes.map((r) => ({ ...r, advancePrep: Array.isArray(r.advancePrep) ? r.advancePrep : [] })),
+      archivedIds,
+    };
+  } catch {
+    return emptyLibrary();
+  }
+}
+
+export function saveLibrary(library: RecipeLibrary): void {
+  safeSet(LIBRARY_KEY, JSON.stringify(library));
 }
 
 export function newId(): string {

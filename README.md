@@ -3,6 +3,9 @@
 Weekly meal-planning prototype: **plan** meals, generate a **shopping list**,
 and get a **cooking schedule** with advance prep and batch-prep suggestions.
 
+Recipes come from a built-in seed set plus whatever you add or edit in the recipes tab. The layout
+is mobile-first: the shopping list is meant to be used on a phone in the store.
+
 This web app exists to validate the domain logic before a native iOS build.
 All logic lives in `src/domain/` as pure TypeScript with no framework or
 browser dependencies, intended to be ported to Swift. Design decisions and
@@ -39,10 +42,10 @@ zsh scripts/deploy_fedora.sh aut@aut-macbookpro181  # off the LAN (Tailscale Mag
 ## Layout
 
 ```
-src/domain/     pure domain logic + tests (types, units, recipes, plan, shopping, schedule)
+src/domain/     pure domain logic + tests (types, units, recipes, library, plan, shopping, schedule)
 src/data/       seed recipes
-src/storage/    localStorage adapter (only module that touches window)
-src/ui/         plain React views: week grid, shopping list, schedule, settings
+src/storage/    localStorage adapter (only module that touches window): plan, recipe library, checkboxes
+src/ui/         plain React views: week grid, shopping list, schedule, recipe list + editor, settings
 docs/           DECISIONS.md: the logic spec; deploy.md: how main reaches the box
 scripts/        deploy.sh (on the box) + deploy_fedora.sh (over ssh)
 Dockerfile      node build stage -> nginx serving dist/; docker-compose.yml runs it on the box

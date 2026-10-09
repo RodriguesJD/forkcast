@@ -41,6 +41,24 @@ export type StoreSection =
   | 'spices'
   | 'other';
 
+/** Walking order through a typical grocery store; also the canonical list of sections. */
+export const STORE_SECTION_ORDER: readonly StoreSection[] = [
+  'produce',
+  'bakery',
+  'meat',
+  'seafood',
+  'dairy',
+  'dry-goods',
+  'canned',
+  'spices',
+  'frozen',
+  'other',
+];
+
+export function isStoreSection(value: string): value is StoreSection {
+  return (STORE_SECTION_ORDER as readonly string[]).includes(value);
+}
+
 export interface Ingredient {
   /** Human-readable name, e.g. "yellow onion". Matching uses normalizeIngredientName. */
   name: string;
@@ -236,4 +254,42 @@ export interface Schedule {
   beforeWeek: AdvancePrepTask[];
   days: DaySchedule[];
   warnings: Warning[];
+}
+
+// ---------- recipe library ----------
+
+/**
+ * Recipes the user has authored or edited, kept apart from the shipped seed
+ * recipes. A library recipe whose id matches a seed recipe replaces it; removing
+ * that library recipe restores the seed version. See resolveRecipes.
+ */
+export interface RecipeLibrary {
+  recipes: Recipe[];
+  /** Recipe ids not offered when planning new meals. Existing plan entries still resolve. */
+  archivedIds: string[];
+}
+
+export type RecipeOrigin = 'seed' | 'edited-seed' | 'custom';
+
+export type RecipeProblemCode =
+  | 'empty-name'
+  | 'invalid-base-servings'
+  | 'invalid-active-minutes'
+  | 'invalid-total-minutes'
+  | 'no-ingredients'
+  | 'ingredient-empty-name'
+  | 'ingredient-invalid-amount'
+  | 'ingredient-invalid-unit'
+  | 'ingredient-invalid-section'
+  | 'prep-empty-description'
+  | 'prep-invalid-lead-days'
+  | 'prep-invalid-minutes'
+  | 'prep-duplicate-id';
+
+/** A reason a recipe cannot be saved. Indexes point at the offending ingredient or prep step. */
+export interface RecipeProblem {
+  code: RecipeProblemCode;
+  message: string;
+  ingredientIndex?: number;
+  stepIndex?: number;
 }
