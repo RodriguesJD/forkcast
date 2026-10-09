@@ -7,8 +7,9 @@ services:
     container_name: forkcast-web
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    # Loopback only. Docker's nat rules bypass firewalld, so this host-interface prefix is
-    # the real firewall; the way in from any device is Tailscale (docs/deploy.md).
-    # 5002: clinch has 5001 and 8001.
-    ports: ["127.0.0.1:5002:80"]
+    # All host interfaces, on purpose: the LAN sees it at http://aut-macbookpro181.local:5002
+    # (no Tailscale needed) and `tailscale serve` proxies the same port to the tailnet.
+    # Docker's nat rules bypass firewalld, so this really is open to the whole LAN; the
+    # router must never port-forward it (docs/deploy.md). 5002: clinch has 5001 and 8001.
+    ports: ["5002:80"]
     restart: unless-stopped

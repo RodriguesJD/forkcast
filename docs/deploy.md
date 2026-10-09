@@ -33,7 +33,8 @@ branch, a PR merges it, CI publishes an image, the box pulls it.
      matches `docker image inspect ghcr.io/rodriguesjd/forkcast:<merge sha> --format '{{.Id}}'`,
      and `docker logs watchtower --tail 5` shows an update for that poll;
    - `curl -s http://127.0.0.1:5002/ | head -3` returns the app shell;
-   - open `http://aut-macbookpro181.<tailnet>.ts.net:8082` from a phone and hard-refresh.
+   - open `http://aut-macbookpro181.local:5002` from a laptop on the home Wi-Fi, or
+     `http://aut-macbookpro181.<tailnet>.ts.net:8082` from a phone on the tailnet, and reload.
      `index.html` is served `no-cache` and assets are content-hashed, so a normal reload
      picks up the new build.
 
@@ -51,20 +52,33 @@ cd ~/forkcast
 #    or skip that and rely on the `docker login ghcr.io` the box already has for clinch-v2.
 docker pull ghcr.io/rodriguesjd/forkcast:latest
 
-# 3. Start it. Port 5002 on loopback only (clinch has 5001 and 8001).
+# 3. Start it. Port 5002 on every host interface (clinch has 5001 and 8001), so the LAN can see it.
 docker compose up -d
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:5002/   # 200
 
-# 4. Publish on the tailnet (persisted in tailscaled state; survives reboots).
+# 4. Also publish on the tailnet (persisted in tailscaled state; survives reboots).
 #    80 is clinch's dashboard and 8080 its Datasette, so forkcast takes 8082.
 sudo tailscale serve --bg --http=8082 http://127.0.0.1:5002
 tailscale serve status
 ```
 
-The app is then `http://aut-macbookpro181.<tailnet>.ts.net:8082` from any device signed into the
-tailnet. `tailscale serve` routes by Host header, so the bare IP returns 404; always use the name.
-The app has no authentication and stores its plan in the browser's localStorage, so it must never
-be published on a public port; the loopback binding in `docker-compose.yml` is the firewall.
+## Two ways in
+
+| Who | Needs | URL |
+|-----|-------|-----|
+| Anyone on the home Wi-Fi (Christy, guests) | nothing installed | `http://aut-macbookpro181.local:5002` |
+| Anyone on the tailnet (the lead, from anywhere) | Tailscale signed in | `http://aut-macbookpro181.<tailnet>.ts.net:8082` |
+
+Both point at the same container and work at the same time: compose publishes `5002` on every
+host interface, and `tailscale serve` proxies that same port onto the tailnet. The `.local` name
+is mDNS, which Macs, iPhones and most laptops resolve on the LAN without setup; if a device cannot,
+use the box's LAN IP (`ip -4 addr show` on the box) with `:5002`. `tailscale serve` routes by Host
+header, so the bare Tailscale IP returns 404; always use the name there.
+
+This differs from clinch-v2, which binds loopback only. Forkcast keeps no server-side data (the
+plan lives in each browser's localStorage) and has nothing a guest on the Wi-Fi could damage, so
+LAN exposure is acceptable. It is still not internet-safe: never port-forward 5002 on the router,
+and remember that Docker's published ports bypass firewalld, so firewalld rules will not close it.
 
 HTTPS (`--https=8443` instead of `--http=8082`) works once "HTTPS Certificates" is enabled for
 the tailnet, the same open item as clinch-v2's `docs/remote_access.md`.
