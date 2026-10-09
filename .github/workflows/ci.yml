@@ -1,0 +1,57 @@
+# Typecheck + offline test suite + production build on every PR and on main. No network needed.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Vitest
+        run: npm test
+      - name: Build
+        run: npm run build
+
+  # On main only, after tests pass: publish the arm64 image Watchtower on the box pulls.
+  # Tagged :latest (what compose and Watchtower follow) and :<sha> (for pinning a rollback).
+  # The Dockerfile's build stage runs on the runner's own platform, so only the tiny nginx
+  # stage is emulated; this takes a couple of minutes, not the 10-15 a Python image needs.
+  build-image:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/arm64
+          tags: |
+            ghcr.io/rodriguesjd/forkcast:latest
+            ghcr.io/rodriguesjd/forkcast:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
