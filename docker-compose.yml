@@ -1,0 +1,14 @@
+services:
+  forkcast-web:
+    build: .
+    # CI publishes this image on every merge to main; Watchtower (started by the
+    # eth-grid-trader compose on the box) recreates labelled containers when it changes.
+    image: ghcr.io/rodriguesjd/forkcast:latest
+    container_name: forkcast-web
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    # Loopback only. Docker's nat rules bypass firewalld, so this host-interface prefix is
+    # the real firewall; the way in from any device is Tailscale (docs/deploy.md).
+    # 5002: clinch has 5001 and 8001.
+    ports: ["127.0.0.1:5002:80"]
+    restart: unless-stopped

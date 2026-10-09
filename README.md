@@ -18,6 +18,23 @@ npm run typecheck
 npm run build
 ```
 
+## Where it runs
+
+Production is the Fedora Asahi box `aut-macbookpro181.local`, the same host as clinch-v2. The checkout at
+`~/forkcast` tracks `main`; `docker compose` runs nginx serving the built site on `127.0.0.1:5002`, and
+`tailscale serve` publishes it as `http://aut-macbookpro181.<tailnet>.ts.net:8082` for any device on the tailnet.
+
+Changes reach the box through a PR: a session pushes a branch, CI (typecheck + Vitest + build) must be green,
+the PR is merged, CI publishes `ghcr.io/rodriguesjd/forkcast:latest` (arm64), and Watchtower on the box rolls it
+out within a few minutes. The full loop, one-time host setup and verification are in
+[`docs/deploy.md`](docs/deploy.md).
+
+```sh
+bash ~/forkcast/scripts/deploy.sh                  # on the box, optional: pull now instead of waiting for Watchtower
+zsh scripts/deploy_fedora.sh                       # same thing over ssh from another machine
+zsh scripts/deploy_fedora.sh aut@aut-macbookpro181  # off the LAN (Tailscale MagicDNS name)
+```
+
 ## Layout
 
 ```
@@ -25,5 +42,7 @@ src/domain/     pure domain logic + tests (types, units, recipes, plan, shopping
 src/data/       seed recipes
 src/storage/    localStorage adapter (only module that touches window)
 src/ui/         plain React views: week grid, shopping list, schedule, settings
-docs/           DECISIONS.md: the logic spec
+docs/           DECISIONS.md: the logic spec; deploy.md: how main reaches the box
+scripts/        deploy.sh (on the box) + deploy_fedora.sh (over ssh)
+Dockerfile      node build stage -> nginx serving dist/; docker-compose.yml runs it on the box
 ```
