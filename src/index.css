@@ -1,59 +1,160 @@
+/*
+ * Mobile-first. The phone is where the shopping list gets used (in the store)
+ * and where meals get picked (on the couch); the wide layout is the bonus.
+ * One breakpoint at 720px switches the week from stacked day cards to columns.
+ */
 :root {
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: #1a1a1a;
   background: #fafafa;
   line-height: 1.4;
+  --border: #ddd;
+  --muted: #777;
+  --danger: #b00020;
+  --warn: #a05a00;
+  --accent: #1a1a1a;
+  --tap: 40px;
 }
 * { box-sizing: border-box; }
-body { margin: 0; }
+body { margin: 0; -webkit-text-size-adjust: 100%; }
 button { font: inherit; cursor: pointer; }
-input, select { font: inherit; }
+/* 16px minimum stops iOS Safari zooming into a focused field. */
+input, select, textarea { font: inherit; font-size: max(16px, 1em); }
+input, select { min-height: var(--tap); padding: 4px 8px; border: 1px solid #bbb; border-radius: 6px; background: #fff; }
+select { max-width: 100%; }
+button { min-height: var(--tap); padding: 6px 14px; border: 1px solid #bbb; border-radius: 6px; background: #fff; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.danger { color: var(--danger); border-color: #e0a0a8; }
+h2 { font-size: 1.2rem; margin: 0 0 12px; }
+h3 { font-size: 1rem; }
 
-.app { max-width: 1200px; margin: 0 auto; padding: 16px; }
-.app header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.app { max-width: 1200px; margin: 0 auto; padding: 12px 16px 48px; }
+.app header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
 .app header h1 { margin: 0; font-size: 1.4rem; }
-.tabs button { background: none; border: 1px solid #ccc; padding: 6px 12px; margin-right: 4px; border-radius: 4px; }
-.tabs button.active { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tabs button { padding: 6px 12px; text-transform: capitalize; }
+.tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.clear-week { margin-left: auto; font-size: 0.9em; }
 
-.warnings { margin: 8px 0 16px; padding: 8px 12px; background: #fff7e0; border: 1px solid #f0d58c; border-radius: 4px; }
+.warnings { margin: 8px 0 16px; padding: 8px 12px; background: #fff7e0; border: 1px solid #f0d58c; border-radius: 6px; }
+.warnings ul { margin: 4px 0 0; padding-left: 20px; }
 .warnings li { margin: 2px 0; }
 .warnings code { font-size: 0.8em; color: #666; }
+.muted { color: var(--muted); font-size: 0.9em; }
 
-table.grid { border-collapse: collapse; width: 100%; }
-table.grid th, table.grid td { border: 1px solid #ddd; padding: 6px; vertical-align: top; }
-table.grid th { background: #f0f0f0; text-align: left; }
-table.grid td.slot { min-width: 150px; }
-table.grid .cell { display: flex; flex-direction: column; gap: 4px; }
-table.grid .cell select { width: 100%; }
-table.grid .cell .meta { display: flex; gap: 4px; align-items: center; font-size: 0.85em; }
-table.grid .cell .meta input { width: 56px; }
-table.grid .cell .leftover { color: #555; font-style: italic; font-size: 0.9em; }
-table.grid .cell .warn { color: #a05a00; font-size: 0.8em; }
-table.grid .cell .load { font-size: 0.75em; color: #777; }
-table.grid .cell .load.over { color: #b00020; font-weight: 600; }
+/* ---------- plan: the week ---------- */
+.week { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.day-col { background: #fff; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.day-head { margin: 0; padding: 8px 12px; background: #f0f0f0; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 1rem; }
+.day-head .load { font-weight: normal; font-size: 0.8em; color: var(--muted); white-space: nowrap; }
+.day-head .load.over { color: var(--danger); font-weight: 600; }
+.slot-cell { display: grid; grid-template-columns: 5.5em 1fr; gap: 8px; padding: 8px 12px; border-top: 1px solid #eee; align-items: start; }
+.slot-label { text-transform: capitalize; color: var(--muted); padding-top: 9px; font-size: 0.9em; }
+.slot-cell.filled .slot-label { color: #1a1a1a; }
+.cell { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cell select { width: 100%; }
+.cell .meta { display: flex; gap: 6px; align-items: center; font-size: 0.9em; color: #444; }
+.cell .meta input { width: 4.5em; text-align: center; }
+.cell .leftover { color: #555; font-style: italic; font-size: 0.9em; }
+.cell .warn { color: var(--warn); font-size: 0.85em; }
 
-.shopping section { margin-bottom: 16px; }
-.shopping h3 { margin: 0 0 4px; text-transform: capitalize; }
+/* ---------- shop ---------- */
+.shopping section { margin-bottom: 20px; }
+.shopping h3 { margin: 0; padding: 8px 0 4px; text-transform: capitalize; position: sticky; top: 0; background: #fafafa; z-index: 1; border-bottom: 1px solid var(--border); }
 .shopping ul { list-style: none; padding: 0; margin: 0; }
-.shopping li { padding: 4px 0; display: flex; gap: 8px; align-items: baseline; }
+.shopping li { display: flex; gap: 12px; align-items: flex-start; border-bottom: 1px solid #eee; }
+.shopping li input[type='checkbox'] { width: 24px; height: 24px; min-height: 0; margin: 12px 0 0; flex: none; accent-color: var(--accent); }
+.shopping li label { flex: 1; padding: 10px 0; display: block; cursor: pointer; }
 .shopping li.checked span.name { text-decoration: line-through; color: #999; }
-.shopping .sources { font-size: 0.8em; color: #777; }
-.shopping .conflict { color: #b00020; font-size: 0.8em; }
+.shopping .name { display: block; }
+.shopping .sources { display: block; font-size: 0.8em; color: var(--muted); }
+.shopping .conflict { display: block; color: var(--danger); font-size: 0.8em; }
 .shopping .staples { color: #666; font-size: 0.9em; }
 
-.schedule .day { margin-bottom: 16px; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; background: #fff; }
-.schedule .day.over { border-color: #b00020; }
-.schedule .day h3 { margin: 0 0 6px; display: flex; justify-content: space-between; }
+/* ---------- cook ---------- */
+.schedule .day { margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.schedule .day.over { border-color: var(--danger); }
+.schedule .day h3 { margin: 0 0 6px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .schedule .day h3 .load { font-weight: normal; font-size: 0.85em; color: #666; }
-.schedule .day h3 .load.over { color: #b00020; }
+.schedule .day h3 .load.over { color: var(--danger); }
 .schedule ul { margin: 0; padding-left: 20px; }
+.schedule li { margin: 4px 0; }
 .schedule li.prep { color: #444; }
 .schedule li.batch { color: #2a6; }
 .schedule .empty { color: #999; font-style: italic; }
 
-.settings label { display: block; margin: 8px 0; }
-.settings input[type='number'] { width: 70px; }
-.settings .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-.settings .days label { display: flex; flex-direction: column; font-size: 0.85em; }
-.settings textarea { width: 100%; min-height: 80px; font: inherit; }
-.muted { color: #777; font-size: 0.9em; }
+/* ---------- recipes ---------- */
+.recipes .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.recipe-list { list-style: none; margin: 0; padding: 0; }
+.recipe-list li { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid #eee; }
+.recipe-list li.archived .recipe-main { opacity: 0.6; }
+.recipe-title { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.recipe-sub { font-size: 0.85em; color: var(--muted); }
+.badge { font-size: 0.7em; padding: 1px 6px; border-radius: 999px; background: #eee; color: #555; text-transform: lowercase; white-space: nowrap; }
+.badge.custom { background: #e3f1e6; color: #1e6b31; }
+.badge.edited-seed { background: #e7ecf8; color: #2a4a8a; }
+.badge.used { background: #fff1d6; color: #8a5a00; }
+.badge.archived { background: #f3e0e0; color: #8a2a2a; }
+.recipe-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.recipe-actions button { padding: 4px 10px; min-height: 34px; font-size: 0.9em; }
+
+.recipe-form { max-width: 820px; }
+/* Grid children must be allowed to shrink below their intrinsic width or a phone gets a horizontal scroll. */
+.recipe-form input, .recipe-form select { width: 100%; min-width: 0; }
+.recipe-form .field { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-size: 0.9em; color: #444; }
+.recipe-form .field input { color: #1a1a1a; }
+.recipe-form .field-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.recipe-form h3 { margin: 20px 0 4px; }
+.recipe-form .problems { margin: 6px 0; padding: 6px 10px 6px 26px; background: #fde8ea; border: 1px solid #f0b3ba; border-radius: 6px; color: var(--danger); font-size: 0.9em; }
+.ingredients, .steps { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.ingredient, .step { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.ingredient.invalid, .step.invalid { border-color: var(--danger); }
+.ingredient { grid-template-columns: 1fr 1fr auto; grid-template-areas: 'name name remove' 'amount unit unit' 'section prep prep' 'problems problems problems'; }
+.ingredient .ing-name { grid-area: name; }
+.ingredient .ing-amount { grid-area: amount; }
+.ingredient .ing-unit { grid-area: unit; }
+.ingredient .ing-section { grid-area: section; }
+.ingredient .ing-prep { grid-area: prep; }
+.ingredient .remove { grid-area: remove; }
+.ingredient .problems, .step .problems { grid-area: problems; margin: 0; }
+.step { grid-template-columns: 1fr 1fr auto; grid-template-areas: 'desc desc remove' 'days min min' 'problems problems problems'; }
+.step .step-desc { grid-area: desc; }
+.step .step-days { grid-area: days; }
+.step .step-min { grid-area: min; }
+.step .remove { grid-area: remove; }
+.step label { display: flex; align-items: center; gap: 6px; font-size: 0.9em; color: #444; }
+.step label input { width: 4.5em; flex: none; text-align: center; }
+.remove { width: var(--tap); padding: 0; font-size: 1.3em; line-height: 1; color: var(--muted); }
+.form-actions { display: flex; gap: 10px; margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); }
+
+/* ---------- settings ---------- */
+.settings label { display: block; margin: 10px 0; }
+.settings .slots label { display: inline-flex; align-items: center; gap: 4px; margin: 0 12px 0 0; white-space: nowrap; }
+.settings input[type='checkbox'] { width: 20px; height: 20px; min-height: 0; accent-color: var(--accent); }
+.settings input[type='number'] { width: 5em; }
+.settings .days { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px; }
+.settings .days label { display: flex; flex-direction: column; font-size: 0.85em; margin: 0; }
+.settings .days input { width: 100%; }
+.settings textarea { width: 100%; min-height: 80px; padding: 8px; border: 1px solid #bbb; border-radius: 6px; }
+
+/* ---------- wide screens ---------- */
+@media (min-width: 720px) {
+  :root { --tap: 32px; }
+  input, select, textarea { font-size: 1em; }
+  .app { padding: 16px; }
+  .week { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+  /* Each day column is a subgrid so the breakfast/lunch/dinner rows line up across days. */
+  .day-col { display: grid; grid-template-rows: subgrid; grid-row: span calc(var(--slot-rows) + 1); border-radius: 6px; }
+  .day-head { flex-direction: column; align-items: flex-start; gap: 0; padding: 6px 8px; font-size: 0.95rem; }
+  .slot-cell { grid-template-columns: 1fr; gap: 2px; padding: 6px 8px; }
+  .slot-label { padding-top: 0; font-size: 0.75em; }
+  .cell .meta { font-size: 0.85em; }
+  .cell .meta input { width: 4em; }
+  .shopping li label { padding: 6px 0; }
+  .shopping .name, .shopping .sources, .shopping .conflict { display: inline; }
+  .shopping li input[type='checkbox'] { width: 18px; height: 18px; margin-top: 9px; }
+  .recipe-list li { flex-direction: row; align-items: center; justify-content: space-between; }
+  .ingredient { grid-template-columns: 3fr 1fr 1fr 1.4fr 2fr auto; grid-template-areas: 'name amount unit section prep remove' 'problems problems problems problems problems problems'; }
+  .step { grid-template-columns: 1fr auto auto auto; grid-template-areas: 'desc days min remove' 'problems problems problems problems'; }
+  .settings .days { grid-template-columns: repeat(7, 1fr); }
+}

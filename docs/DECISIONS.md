@@ -249,3 +249,50 @@ since the plan was saved.
 **Why.** The domain stays portable; storage format can change independently.
 
 **Known limits.** No migrations beyond defaulting new settings fields.
+
+## 19. The recipe library layers user recipes over the seed recipes
+
+**Decision.** `RecipeLibrary` is `{ recipes, archivedIds }`. `resolveRecipes(seed, library)`
+produces the `RecipeIndex` everything else consumes: the seed recipes, with every library
+recipe laid on top. One id space: a library recipe whose id matches a seed recipe replaces it
+(`recipeOrigin` reports `edited-seed`), and `removeRecipe` on that id reverts to the seed
+version. `archivedIds` hides a recipe from the picker (`plannableRecipes`) without touching
+plan entries that already use it; they still resolve and still shop and schedule.
+
+Deleting a custom recipe that is on the plan leaves those entries in place; they surface as
+`unknown-recipe` warnings (decision 16) until the user changes them. The UI warns before
+deleting and shows the slot as "(deleted recipe)" so it can be cleared.
+
+**Why.** Editing a seed recipe in place keeps every plan entry pointing at it valid, and
+reverting is a delete rather than a second undo system. Archiving exists because a household
+cooks a dozen things on rotation and a long picker is the first thing that makes planning a
+chore. Keeping archived recipes resolvable means archiving is never destructive.
+
+**Known limits.**
+- The library lives in one browser's `localStorage` (`forkcast.recipes.v1`), so recipes do not
+  follow the user to another device or to another person on the LAN. A shared store is the next
+  storage decision.
+- A seed recipe that changes in a later release is masked by any user edit of the same id.
+- Duplicate names are allowed; identity is the id.
+
+## 20. A recipe must validate before it is saved
+
+**Decision.** `validateRecipe` returns `RecipeProblem[]` (a closed `RecipeProblemCode` union,
+an English message, and the index of the offending ingredient or prep step). Rules: non-empty
+name; `baseServings` a positive integer; `activeMinutes` a non-negative integer;
+`totalMinutes` an integer of at least 1 and at least `activeMinutes`; at least one ingredient;
+every ingredient has a name, a finite positive amount, a unit from `ALL_UNITS` and a section
+from `STORE_SECTION_ORDER`; every prep step has a description, integer `leadDays >= 1`,
+non-negative integer `activeMinutes`, and an id unique within the recipe. The editor normalizes
+ingredient names and prep verbs with `normalizeIngredientName` on save so that merging
+(decision 9) and batch prep (decision 15) work across hand-typed recipes.
+
+**Why.** Every downstream rule assumes these invariants (scaling divides by `baseServings`,
+load sums minutes, the shopping key uses the unit family). Checking them once at the door with
+structured problems means the form, the Swift port and the tests share one definition of a
+valid recipe, and the domain never has to defend against a half-typed recipe.
+
+**Known limits.**
+- `activeMinutes` of 0 is allowed (assembly-only meals) even though the seed data test insists
+  on more than 0 for shipped recipes.
+- Validation is per recipe; nothing checks that two recipes spell an ingredient the same way.

@@ -1,32 +1,19 @@
 import { normalizeIngredientName, scaleIngredients } from './recipes';
 import { effectiveCookEntries } from './plan';
-import type {
-  Quantity,
-  RecipeIndex,
-  ShoppingItem,
-  ShoppingList,
-  ShoppingSection,
-  ShoppingSource,
-  StoreSection,
-  Unit,
-  Warning,
-  WeekPlan,
+import {
+  STORE_SECTION_ORDER,
+  type Quantity,
+  type RecipeIndex,
+  type ShoppingItem,
+  type ShoppingList,
+  type ShoppingSection,
+  type ShoppingSource,
+  type StoreSection,
+  type Unit,
+  type Warning,
+  type WeekPlan,
 } from './types';
 import { chooseDisplayUnit, fromBase, toBase, unitFamily } from './units';
-
-/** Walking order through a typical grocery store. */
-export const STORE_SECTION_ORDER: readonly StoreSection[] = [
-  'produce',
-  'bakery',
-  'meat',
-  'seafood',
-  'dairy',
-  'dry-goods',
-  'canned',
-  'spices',
-  'frozen',
-  'other',
-];
 
 interface Bucket {
   key: string;
