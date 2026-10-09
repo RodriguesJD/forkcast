@@ -21,8 +21,9 @@ npm run build
 ## Where it runs
 
 Production is the Fedora Asahi box `aut-macbookpro181.local`, the same host as clinch-v2. The checkout at
-`~/forkcast` tracks `main`; `docker compose` runs nginx serving the built site on `127.0.0.1:5002`, and
-`tailscale serve` publishes it as `http://aut-macbookpro181.<tailnet>.ts.net:8082` for any device on the tailnet.
+`~/forkcast` tracks `main`; `docker compose` runs nginx serving the built site on port 5002, reachable on the home
+Wi-Fi as `http://aut-macbookpro181.local:5002` with nothing installed, and `tailscale serve` also publishes it as
+`http://aut-macbookpro181.<tailnet>.ts.net:8082` for any device on the tailnet.
 
 Changes reach the box through a PR: a session pushes a branch, CI (typecheck + Vitest + build) must be green,
 the PR is merged, CI publishes `ghcr.io/rodriguesjd/forkcast:latest` (arm64), and Watchtower on the box rolls it
