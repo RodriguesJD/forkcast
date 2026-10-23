@@ -18,7 +18,18 @@ git pull --ff-only -q origin main
 echo "box at $(git log --oneline -1)"
 
 docker pull -q ghcr.io/rodriguesjd/forkcast:latest
-docker compose up -d
+
+# `compose up -d` recreates the container when its settings change, but not when only the image
+# behind the same tag changed (that is Watchtower's job, on its 5-minute poll). For "now", compare
+# the image the container runs with the one just pulled and force the recreate when they differ.
+want="$(docker image inspect ghcr.io/rodriguesjd/forkcast:latest --format '{{.Id}}')"
+have="$(docker inspect forkcast-web --format '{{.Image}}' 2>/dev/null || true)"
+if [ "$want" != "$have" ]; then
+  echo "new image: recreating forkcast-web"
+  docker compose up -d --force-recreate
+else
+  docker compose up -d
+fi
 
 # The server takes a moment to open its database; give it up to 20 s before judging.
 for _ in $(seq 1 20); do
