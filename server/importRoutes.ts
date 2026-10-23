@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { draftFromSchemaRecipe, draftFromText, extractJsonLdRecipe, htmlToText, type RecipeDraft } from '../src/domain/importRecipe';
 import { isHttpUrl } from '../src/domain/recipeInput';
-import { claudeAvailable, ExtractionError, extractRecipeWithClaude, type ImageMediaType } from './claude';
+import { claudeAvailable, ExtractionError, extractRecipeWithClaude, fetchPageTextWithClaude, type ImageMediaType } from './claude';
 
 /**
  * Recipe import: a web page, pasted text, or a photo, each to a RecipeDraft the
@@ -34,14 +34,23 @@ export interface ImportDeps {
   /** Injectable for tests. */
   fetchPage?: (url: string) => Promise<{ status: number; contentType: string; body: string }>;
   extract?: typeof extractRecipeWithClaude;
+  /** Reads a page through Claude's web fetch tool when the site refuses the box. */
+  fetchViaClaude?: typeof fetchPageTextWithClaude;
   claudeOn?: () => boolean;
 }
+
+/** Looks like a browser: some recipe sites answer 402/403 to anything that does not. */
+const BROWSER_HEADERS = {
+  'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
+  accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'accept-language': 'en-US,en;q=0.9',
+};
 
 async function defaultFetchPage(url: string): Promise<{ status: number; contentType: string; body: string }> {
   const res = await fetch(url, {
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     redirect: 'follow',
-    headers: { 'user-agent': 'Mozilla/5.0 (compatible; Forkcast/1.0; +https://github.com/RodriguesJD/forkcast)', accept: 'text/html,application/xhtml+xml' },
+    headers: BROWSER_HEADERS,
   });
   const length = Number(res.headers.get('content-length') ?? 0);
   if (length > MAX_PAGE_BYTES) throw new ExtractionError(422, 'That page is too large to read.');
@@ -53,6 +62,7 @@ async function defaultFetchPage(url: string): Promise<{ status: number; contentT
 export function createImportRoutes(deps: ImportDeps = {}): Hono {
   const fetchPage = deps.fetchPage ?? defaultFetchPage;
   const extract = deps.extract ?? extractRecipeWithClaude;
+  const fetchViaClaude = deps.fetchViaClaude ?? fetchPageTextWithClaude;
   const claudeOn = deps.claudeOn ?? claudeAvailable;
   const routes = new Hono();
 
@@ -62,14 +72,29 @@ export function createImportRoutes(deps: ImportDeps = {}): Hono {
     const body = (await c.req.json().catch(() => undefined)) as { url?: unknown } | undefined;
     const url = typeof body?.url === 'string' ? body.url.trim() : '';
     if (!isFetchableUrl(url)) return c.json({ errors: ['Enter a full web address, like https://example.com/recipe.'] }, 400);
-    let page;
+    let page: { status: number; contentType: string; body: string } | undefined;
     try {
       page = await fetchPage(url);
     } catch (err) {
       if (err instanceof ExtractionError) return c.json({ errors: [err.message] }, err.status as 422);
-      return c.json({ errors: ['Could not load that page. Check the address and that the box has internet access.'] }, 502);
+      if (!claudeOn()) return c.json({ errors: ['Could not load that page. Check the address and that the box has internet access.'] }, 502);
     }
-    if (page.status >= 400) return c.json({ errors: [`That page answered with an error (${page.status}).`] }, 502);
+    // The site refused the box (bot blocking: 401/402/403/429) or never answered: let Claude's
+    // own fetcher try, then extract from whatever text it read.
+    const refused = page === undefined || page.status === 401 || page.status === 402 || page.status === 403 || page.status === 429;
+    if (refused && claudeOn()) {
+      try {
+        const text = await fetchViaClaude(url);
+        return c.json({ draft: await extract({ text, sourceUrl: url }) });
+      } catch (err) {
+        if (err instanceof ExtractionError) return c.json({ errors: [err.message] }, err.status as 422);
+        throw err;
+      }
+    }
+    if (page === undefined || page.status >= 400) {
+      const code = page?.status ?? 'no answer';
+      return c.json({ errors: [`That site would not give us the page (${code}). Copy the recipe text and paste it instead.`] }, 502);
+    }
     if (!/html|xml|text\/plain/i.test(page.contentType) && page.contentType !== '') {
       return c.json({ errors: ['That address is not a web page.'] }, 422);
     }

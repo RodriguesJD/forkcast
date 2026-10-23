@@ -401,8 +401,11 @@ pages without it, pasted text, and photos go to Claude (`server/claude.ts`,
 `claude-opus-5-5` with a structured output schema), when the server has an
 `ANTHROPIC_API_KEY`. Without a key, text falls back to the rule-based parser
 and photo import is reported as off. The server fetches only public hosts
-(`isFetchableUrl`: no LAN, loopback or `.local`), caps pages at 3 MB and
-photos at ~5 MB, and the browser shrinks photos to 1600 px before upload.
+(`isFetchableUrl`: no LAN, loopback or `.local`), with browser-like headers
+because some recipe sites answer 402/403 to anything else; when a site still
+refuses and a key is set, Claude's web fetch tool reads the page instead. Pages
+are capped at 3 MB and photos at ~5 MB, and the browser shrinks photos to
+1600 px before upload.
 
 **Why.** Imports are never perfect; the review step is the safety net and
 keeps the data rules (Decision 19) in one place. Structured data first keeps

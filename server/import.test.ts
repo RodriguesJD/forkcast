@@ -51,13 +51,15 @@ describe('import routes', () => {
   let cookie: string;
   const fetchPage = vi.fn();
   const extract = vi.fn();
+  const fetchViaClaude = vi.fn();
   let claudeOn = false;
 
   beforeEach(async () => {
     fetchPage.mockReset();
     extract.mockReset();
+    fetchViaClaude.mockReset();
     claudeOn = false;
-    app = createApp({ db: openMemoryDatabase(), importDeps: { fetchPage, extract, claudeOn: () => claudeOn } });
+    app = createApp({ db: openMemoryDatabase(), importDeps: { fetchPage, extract, fetchViaClaude, claudeOn: () => claudeOn } });
     const res = await app.request('/api/auth/signup', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ username: 'christy', password: 'correct horse' }) });
     cookie = (res.headers.get('set-cookie') ?? '').split(';')[0];
   });
@@ -113,11 +115,37 @@ describe('import routes', () => {
     expect((await json(res)).errors[0]).toMatch(/paste/i);
   });
 
-  it('reports unreachable pages and HTTP errors', async () => {
+  it('reports unreachable pages and HTTP errors, suggesting paste', async () => {
     fetchPage.mockRejectedValue(new Error('ECONNREFUSED'));
     expect((await post('/api/import/url', { url: 'https://example.com/x' })).status).toBe(502);
     fetchPage.mockResolvedValue({ status: 404, contentType: 'text/html', body: '' });
-    expect((await post('/api/import/url', { url: 'https://example.com/x' })).status).toBe(502);
+    const res = await post('/api/import/url', { url: 'https://example.com/x' });
+    expect(res.status).toBe(502);
+    expect((await json(res)).errors[0]).toMatch(/404.*paste/i);
+    expect(fetchViaClaude).not.toHaveBeenCalled();
+  });
+
+  it('when a site refuses the box (402/403), Claude fetches the page and extracts it', async () => {
+    claudeOn = true;
+    fetchPage.mockResolvedValue({ status: 402, contentType: 'text/html', body: 'Payment Required' });
+    fetchViaClaude.mockResolvedValue('Homemade Chicken Soup\nServes 10\n1 whole chicken\nSimmer.');
+    extract.mockResolvedValue(claudeDraft);
+    const res = await post('/api/import/url', { url: 'https://www.allrecipes.com/recipe/8814/homemade-chicken-soup/' });
+    expect(res.status).toBe(200);
+    expect(fetchViaClaude).toHaveBeenCalledWith('https://www.allrecipes.com/recipe/8814/homemade-chicken-soup/');
+    expect(extract).toHaveBeenCalledWith({ text: 'Homemade Chicken Soup\nServes 10\n1 whole chicken\nSimmer.', sourceUrl: 'https://www.allrecipes.com/recipe/8814/homemade-chicken-soup/' });
+
+    fetchViaClaude.mockRejectedValue(new ExtractionError(422, 'That site refuses automated readers. Copy the recipe text and paste it instead.'));
+    const blocked = await post('/api/import/url', { url: 'https://www.allrecipes.com/recipe/8814/homemade-chicken-soup/' });
+    expect(blocked.status).toBe(422);
+    expect((await json(blocked)).errors[0]).toMatch(/paste/i);
+  });
+
+  it('without a key, a refusing site gets the paste suggestion', async () => {
+    fetchPage.mockResolvedValue({ status: 403, contentType: 'text/html', body: '' });
+    const res = await post('/api/import/url', { url: 'https://example.com/x' });
+    expect(res.status).toBe(502);
+    expect((await json(res)).errors[0]).toMatch(/403.*paste/i);
   });
 
   it('parses pasted text by rule without a key and with Claude when available', async () => {
