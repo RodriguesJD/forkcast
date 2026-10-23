@@ -3,6 +3,8 @@
 .claude
 node_modules
 dist
+dist-server
+data
 docs
 scripts
 *.local

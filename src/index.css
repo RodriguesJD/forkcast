@@ -57,3 +57,62 @@ table.grid .cell .load.over { color: #b00020; font-weight: 600; }
 .settings .days label { display: flex; flex-direction: column; font-size: 0.85em; }
 .settings textarea { width: 100%; min-height: 80px; font: inherit; }
 .muted { color: #777; font-size: 0.9em; }
+
+/* ---------- shared form bits ---------- */
+button.primary { background: #1a1a1a; color: #fff; border: 1px solid #1a1a1a; padding: 8px 14px; border-radius: 4px; }
+button.primary:disabled { opacity: 0.6; cursor: default; }
+button.link { background: none; border: none; padding: 0; color: #1a56db; text-decoration: underline; }
+button.icon { background: none; border: 1px solid #ccc; border-radius: 4px; padding: 2px 8px; color: #666; }
+input[type='text'], input[type='password'], input[type='number'], select, textarea {
+  padding: 6px 8px; border: 1px solid #bbb; border-radius: 4px; background: #fff;
+}
+.errors { margin: 12px 0; padding: 8px 12px; background: #fde8e8; border: 1px solid #f5b5b5; border-radius: 4px; color: #8a1c1c; }
+ul.errors { padding-left: 28px; }
+.notice { margin: 12px 0; padding: 8px 12px; background: #e8f0fe; border: 1px solid #b7cdf8; border-radius: 4px; }
+.centered { min-height: 60vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #555; }
+
+/* ---------- header ---------- */
+.app header .spacer { flex: 1; }
+.save-status { font-size: 0.85em; padding: 2px 8px; border-radius: 10px; background: #e6f4ea; color: #1e6b33; }
+.save-status.saving { background: #eee; color: #555; }
+.save-status.retrying { background: #fff2cc; color: #7a5a00; }
+.save-status.failed { background: #fde8e8; color: #8a1c1c; }
+
+/* ---------- sign in ---------- */
+.auth { min-height: 90vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.auth .card { width: 100%; max-width: 360px; background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+.auth .card h1 { margin: 0; }
+.auth .card p { margin: 0; }
+.auth label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9em; }
+.auth input { font-size: 1rem; }
+.auth .switch { text-align: center; }
+
+/* ---------- recipes ---------- */
+.recipes .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.recipes h2 { margin: 0; }
+.recipe-list { list-style: none; padding: 0; margin: 12px 0 0; }
+.recipe-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #e5e5e5; }
+.recipe-list .info { display: flex; flex-direction: column; gap: 2px; }
+.recipe-list .buttons { display: flex; gap: 6px; flex-shrink: 0; }
+
+.recipe-form { display: flex; flex-direction: column; gap: 10px; max-width: 900px; }
+.recipe-form h2, .recipe-form h3 { margin: 8px 0 0; }
+.recipe-form > label { display: flex; flex-direction: column; gap: 4px; max-width: 480px; }
+.recipe-form .row { display: flex; gap: 16px; flex-wrap: wrap; }
+.recipe-form .row label { display: flex; flex-direction: column; gap: 4px; }
+.recipe-form .row input { width: 110px; }
+.recipe-form .ingredients { display: flex; flex-direction: column; gap: 6px; }
+.recipe-form .ingredient { display: grid; grid-template-columns: 2fr 80px 90px 120px 1.2fr 36px; gap: 6px; align-items: center; }
+.recipe-form .ingredient.head { font-size: 0.8em; color: #777; }
+.recipe-form .ingredient input, .recipe-form .ingredient select { min-width: 0; width: 100%; }
+.recipe-form .step { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.recipe-form .step > input[type='text'] { flex: 1 1 260px; }
+.recipe-form .step input[type='number'] { width: 64px; }
+.recipe-form > button { align-self: flex-start; }
+.recipe-form .actions { display: flex; gap: 8px; margin-top: 8px; }
+
+@media (max-width: 700px) {
+  .recipe-form .ingredient { grid-template-columns: 1fr 1fr; }
+  .recipe-form .ingredient.head { display: none; }
+  .recipe-form .ingredient input[type='text']:first-child { grid-column: 1 / -1; }
+}

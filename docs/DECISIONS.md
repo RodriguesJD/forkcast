@@ -239,13 +239,100 @@ are a closed union (`WarningCode`). Messages are English and ready to show.
 **Why.** The UI can attach warnings to cells and days by id without parsing
 text, and the Swift port gets an enum for free.
 
-## 18. Persistence is outside the domain
+## 18. Persistence is server-side, per account, and nothing lives in the browser
 
-**Decision.** `src/storage/localStorage.ts` is the only module that touches
-`window`. It stores the plan under `forkcast.plan.v1` and shopping checkbox
-state under `forkcast.checked.v1`, and fills in any settings fields added
-since the plan was saved.
+**Decision.** All state belongs to an account and is stored in one SQLite
+database on the server (`server/db.ts`): recipes, the week plan (settings and
+entries) and the shopping-list checkbox map. The browser keeps only the session
+cookie; nothing is written to localStorage. The client loads everything after
+sign-in (`GET /api/state`, `GET /api/recipes`) and writes changes back through
+the API. Recipe ingredients and advance-prep steps are JSON columns because
+the `Recipe` type must round-trip unchanged and nothing queries inside them.
 
-**Why.** The domain stays portable; storage format can change independently.
+**Why.** The person using this wants the same plan on the phone at the store
+and on the laptop at the table, and to trust that it is still there tomorrow.
+That needs one copy on one machine, not one per browser.
 
-**Known limits.** No migrations beyond defaulting new settings fields.
+**Known limits.**
+- Last write wins. Two devices editing the plan at the same moment do not
+  merge; the later save replaces the earlier. Fine for one household.
+- No migrations beyond `CREATE TABLE IF NOT EXISTS` and defaulting new
+  settings fields on load (`parsePlanInput`). A `schema_version` table exists
+  for when that changes.
+- Nothing works offline; the app is served by the same process as the API.
+
+## 19. Recipe input is validated by one pure function
+
+**Decision.** `parseRecipeInput(raw)` (`src/domain/recipeInput.ts`) turns
+untrusted input into a `RecipeInput` or a list of field-labelled errors. The
+recipe form runs it before submitting and the server runs it again on every
+create or update. Rules: name required (≤120 chars); servings a whole number
+1–100; hands-on and total minutes whole numbers ≥0 with total ≥ hands-on; at
+least one ingredient (≤100), each with a name, an amount >0, a known unit and
+a known store section, optional prep; advance-prep steps (≤20) with a
+description, lead days 1–6 and minutes ≥0; step ids kept when given, else
+generated, and unique. Text is trimmed and inner whitespace collapsed. Ids for
+recipes are assigned by the server, never taken from the client.
+`parsePlanInput` and `parseCheckedInput` (`src/domain/planInput.ts`) do the
+same shape-checking for the plan and the checkbox map, filling missing
+settings from `defaultSettings()` and rejecting nothing that `validatePlan`
+would merely warn about.
+
+**Why.** One definition of "valid recipe" shared by UI and server, and the
+Swift port gets the same rules from the same spec.
+
+**Known limits.** No duplicate-name check; no unit sanity per ingredient
+(a "cup" of chicken thighs is accepted).
+
+## 20. Accounts and sessions
+
+**Decision.** Sign-up is open (the site is reachable only on the home LAN and
+the tailnet). Username 2–40 chars of letters, digits, `.`, `_`, `-`, unique
+case-insensitively; password ≥8 chars. Passwords are stored as scrypt
+(N=2^15, r=8, p=1, 16-byte salt, 64-byte key). A session is 32 random bytes
+in an `HttpOnly; SameSite=Lax` cookie, stored server-side as its SHA-256, valid
+180 days and renewed on use when under 90 remain. The cookie is not `Secure`
+because the site is plain http on the LAN and on tailscale's http port. Login
+is throttled per client address: 10 failures in 15 minutes locks that address
+for 15 minutes. Writes must be JSON (`Content-Type: application/json`), which
+a cross-site form cannot send without a CORS preflight the server never
+answers. A new account is seeded with a copy of the sample recipes so the app
+is usable immediately; those copies are ordinary recipes, editable and
+deletable.
+
+**Why.** Boring, standard choices: nothing to get wrong, nothing to maintain.
+
+**Known limits.** No password reset (reset by editing the database on the
+box; see docs/deploy.md). No account deletion from the UI.
+
+## 21. Saves are optimistic, debounced and retried until they land
+
+**Decision.** Plan and checkbox edits update the screen immediately and go
+through a write-behind queue (`src/api/sync.ts`): a 400 ms debounce coalesces
+a burst of edits into one `PUT`, a failed save is retried with exponential
+backoff (1 s, 2 s, … capped at 30 s) always sending the newest value, and an
+edit made while a save is in flight is saved right after. The header shows
+Saved / Saving… / Not saved yet – retrying / Not saved. Only a 4xx stops the
+queue (our bug, or the session ended, which the UI reports). Leaving the page
+with a save pending prompts first. Recipe create/edit/delete are plain
+request–response: the form shows the server's errors and keeps the input.
+
+**Why.** Home Wi-Fi drops; the box reboots. Edits must not disappear, and the
+person must be able to tell at a glance whether they are safe.
+
+**Known limits.** The pending value lives in memory: closing the tab during a
+long outage loses it (after the prompt).
+
+## 22. The database backs itself up
+
+**Decision.** The server writes a consistent snapshot (`VACUUM INTO`) to
+`<data dir>/backups/forkcast-<UTC timestamp>.sqlite` at startup when the
+newest snapshot is older than 24 h, and checks hourly thereafter, keeping the
+newest 14. `scripts/backup.sh` copies the newest one out of the Docker
+volume.
+
+**Why.** Backups that need remembering do not happen. A snapshot is a complete
+database file that restores by being copied back.
+
+**Known limits.** Snapshots live in the same volume as the database until the
+script copies them elsewhere; losing the box loses both.

@@ -8,21 +8,27 @@ All logic lives in `src/domain/` as pure TypeScript with no framework or
 browser dependencies, intended to be ported to Swift. Design decisions and
 known limits are recorded in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+Everything a person enters (account, recipes, the week plan, shopping-list ticks) is stored
+in a SQLite database by a small Node server (`server/`), so the same state shows on every
+device after signing in. Nothing is kept in the browser but the session cookie.
+
 ## Run
 
 ```sh
 npm install
-npm run dev        # http://localhost:5173
-npm test           # Vitest, domain + seed-data tests
+npm run dev:server # API on http://localhost:3000, database in ./data/ (one terminal)
+npm run dev        # client on http://localhost:5173, proxies /api to 3000 (another terminal)
+npm test           # Vitest: domain, seed data, save queue, server API
 npm run typecheck
-npm run build
+npm run build      # dist/ (client) + dist-server/index.js (server bundle)
+npm start          # serve the built app on http://localhost:3000, as the image does
 ```
 
 ## Where it runs
 
 Production is the Fedora Asahi box `aut-macbookpro181.local`, the same host as clinch-v2. The checkout at
-`~/forkcast` tracks `main`; `docker compose` runs nginx serving the built site on port 5002, reachable on the home
-Wi-Fi as `http://aut-macbookpro181.local:5002` with nothing installed, and `tailscale serve` also publishes it as
+`~/forkcast` tracks `main`; `docker compose` runs the server on port 5002 with the database in the `forkcast-data`
+volume, reachable on the home Wi-Fi as `http://aut-macbookpro181.local:5002` with nothing installed, and `tailscale serve` also publishes it as
 `http://aut-macbookpro181.<tailnet>.ts.net:8082` for any device on the tailnet.
 
 Changes reach the box through a PR: a session pushes a branch, CI (typecheck + Vitest + build) must be green,
@@ -39,11 +45,12 @@ zsh scripts/deploy_fedora.sh aut@aut-macbookpro181  # off the LAN (Tailscale Mag
 ## Layout
 
 ```
-src/domain/     pure domain logic + tests (types, units, recipes, plan, shopping, schedule)
-src/data/       seed recipes
-src/storage/    localStorage adapter (only module that touches window)
-src/ui/         plain React views: week grid, shopping list, schedule, settings
-docs/           DECISIONS.md: the logic spec; deploy.md: how main reaches the box
-scripts/        deploy.sh (on the box) + deploy_fedora.sh (over ssh)
-Dockerfile      node build stage -> nginx serving dist/; docker-compose.yml runs it on the box
+src/domain/     pure domain logic + tests (types, units, recipes, plan, shopping, schedule, input validation)
+src/data/       sample recipes (copied into each new account; also test data)
+src/api/        the browser's HTTP client and the retrying save queue
+src/ui/         plain React views: sign-in, week grid, recipes + form, shopping list, schedule, settings
+server/         Hono + node:sqlite: accounts, sessions, recipes, plan, backups (the only code that touches the DB)
+docs/           DECISIONS.md: the logic spec; deploy.md: how main reaches the box, backups, restore
+scripts/        deploy.sh (on the box), deploy_fedora.sh (over ssh), backup.sh (copy a snapshot out)
+Dockerfile      build stage -> node:22-alpine running dist-server/index.js; docker-compose.yml adds the data volume
 ```
