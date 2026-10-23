@@ -11,5 +11,13 @@ services:
     # (no Tailscale needed) and `tailscale serve` proxies the same port to the tailnet.
     # Docker's nat rules bypass firewalld, so this really is open to the whole LAN; the
     # router must never port-forward it (docs/deploy.md). 5002: clinch has 5001 and 8001.
-    ports: ["5002:80"]
+    ports: ["5002:3000"]
+    # The SQLite database and its nightly backups. A named volume survives image updates,
+    # `docker compose up -d`, Watchtower recreating the container, and reboots. Only
+    # `docker compose down -v` or `docker volume rm` would delete it.
+    volumes:
+      - forkcast-data:/data
     restart: unless-stopped
+
+volumes:
+  forkcast-data:
