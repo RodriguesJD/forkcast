@@ -2,7 +2,7 @@
 # backup.sh — copy the newest database backup out of the Docker volume. Runs ON the box.
 #
 # The server itself writes a consistent snapshot (VACUUM INTO) to /data/backups every 24 h and
-# keeps the newest 14, all inside the `forkcast-data` volume. That protects against bad writes
+# keeps the newest 14, all inside the `forkcast_forkcast-data` volume. That protects against bad writes
 # and mistakes, not against losing the box. This script copies the newest snapshot to
 # ~/forkcast-backups (or $1) so it can be synced somewhere else.
 #

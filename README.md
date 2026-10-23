@@ -27,7 +27,7 @@ npm start          # serve the built app on http://localhost:3000, as the image 
 ## Where it runs
 
 Production is the Fedora Asahi box `aut-macbookpro181.local`, the same host as clinch-v2. The checkout at
-`~/forkcast` tracks `main`; `docker compose` runs the server on port 5002 with the database in the `forkcast-data`
+`~/forkcast` tracks `main`; `docker compose` runs the server on port 5002 with the database in the `forkcast_forkcast-data`
 volume, reachable on the home Wi-Fi as `http://aut-macbookpro181.local:5002` with nothing installed, and `tailscale serve` also publishes it as
 `http://aut-macbookpro181.<tailnet>.ts.net:8082` for any device on the tailnet.
 

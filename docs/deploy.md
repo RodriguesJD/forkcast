@@ -26,10 +26,10 @@ branch, a PR merges it, CI publishes an image, the box pulls it.
    `docker compose up -d`, and prints status. From another machine,
    `zsh scripts/deploy_fedora.sh` runs it over ssh.
 
-   **The data volume.** `docker-compose.yml` mounts the named volume `forkcast-data` at `/data`,
+   **The data volume.** `docker-compose.yml` mounts the named volume `forkcast_forkcast-data` at `/data`,
    where the server keeps `forkcast.sqlite` (accounts, recipes, plans) and `backups/`. The volume
    outlives image updates, container recreation and reboots; only `docker compose down -v` or
-   `docker volume rm forkcast-data` would delete it, so never run those. The image refuses to
+   `docker volume rm forkcast_forkcast-data` would delete it, so never run those. The image refuses to
    start when `/data` is not a mounted volume (`FORKCAST_REQUIRE_MOUNT=1`), so a container
    accidentally created without it fails loudly instead of silently losing data later.
    Watchtower keeps the mounts of the container it replaces, so once the volume is attached it
@@ -48,7 +48,7 @@ branch, a PR merges it, CI publishes an image, the box pulls it.
      `curl -s http://127.0.0.1:5002/ | head -3` returns the app shell;
    - `docker logs forkcast-web --tail 5` shows `database /data/forkcast.sqlite` and `listening`
      (not the "is not a mounted volume" refusal), and `docker inspect forkcast-web --format
-     '{{range .Mounts}}{{.Name}} {{.Destination}}{{end}}'` prints `forkcast-data /data`;
+     '{{range .Mounts}}{{.Name}} {{.Destination}}{{end}}'` prints `forkcast_forkcast-data /data`;
    - open `http://aut-macbookpro181.local:5002` from a laptop on the home Wi-Fi, or
      `http://aut-macbookpro181.<tailnet>.ts.net:8082` from a phone on the tailnet, and reload.
      `index.html` is served `no-cache` and assets are content-hashed, so a normal reload
@@ -69,10 +69,10 @@ cd ~/forkcast
 docker pull ghcr.io/rodriguesjd/forkcast:latest
 
 # 3. Start it. Port 5002 on every host interface (clinch has 5001 and 8001), so the LAN can see it.
-#    `docker compose up -d` also creates the forkcast-data volume on first use.
+#    `docker compose up -d` also creates the forkcast_forkcast-data volume (compose prefixes the project name) on first use.
 docker compose up -d
 curl -s http://127.0.0.1:5002/api/health                            # {"ok":true}
-docker volume inspect forkcast-data --format '{{.Mountpoint}}'      # exists
+docker volume inspect forkcast_forkcast-data --format '{{.Mountpoint}}'      # exists
 
 # 4. Also publish on the tailnet (persisted in tailscaled state; survives reboots).
 #    80 is clinch's dashboard and 8080 its Datasette, so forkcast takes 8082.
@@ -115,7 +115,7 @@ directory given as `$1`), which is the thing to sync off the box.
 
 ```bash
 docker compose -f ~/forkcast/docker-compose.yml stop
-docker run --rm -v forkcast-data:/data alpine sh -c \
+docker run --rm -v forkcast_forkcast-data:/data alpine sh -c \
   'cp /data/backups/forkcast-<stamp>.sqlite /data/forkcast.sqlite && rm -f /data/forkcast.sqlite-wal /data/forkcast.sqlite-shm'
 docker compose -f ~/forkcast/docker-compose.yml start
 ```
@@ -141,7 +141,7 @@ docker exec -it forkcast-web node --no-warnings=ExperimentalWarning -e '
 ```
 
 **Start over** (deletes every account, recipe and plan; the volume stays):
-`docker compose stop && docker run --rm -v forkcast-data:/data alpine rm -f /data/forkcast.sqlite /data/forkcast.sqlite-wal /data/forkcast.sqlite-shm && docker compose start`.
+`docker compose stop && docker run --rm -v forkcast_forkcast-data:/data alpine rm -f /data/forkcast.sqlite /data/forkcast.sqlite-wal /data/forkcast.sqlite-shm && docker compose start`.
 
 HTTPS (`--https=8443` instead of `--http=8082`) works once "HTTPS Certificates" is enabled for
 the tailnet, the same open item as clinch-v2's `docs/remote_access.md`.

@@ -14,7 +14,8 @@ services:
     ports: ["5002:3000"]
     # The SQLite database and its nightly backups. A named volume survives image updates,
     # `docker compose up -d`, Watchtower recreating the container, and reboots. Only
-    # `docker compose down -v` or `docker volume rm` would delete it.
+    # `docker compose down -v` or `docker volume rm` would delete it. Compose prefixes the
+    # project name, so on the box it is `forkcast_forkcast-data` (docs/deploy.md).
     volumes:
       - forkcast-data:/data
     restart: unless-stopped

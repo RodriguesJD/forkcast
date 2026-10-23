@@ -20,6 +20,11 @@ echo "box at $(git log --oneline -1)"
 docker pull -q ghcr.io/rodriguesjd/forkcast:latest
 docker compose up -d
 
+# The server takes a moment to open its database; give it up to 20 s before judging.
+for _ in $(seq 1 20); do
+  curl -s -o /dev/null http://127.0.0.1:5002/api/health && break
+  sleep 1
+done
 docker ps --format '{{.Names}}\t{{.Status}}' | grep forkcast
-curl -s -o /dev/null -w "http://127.0.0.1:5002 -> %{http_code}\n" http://127.0.0.1:5002/ || true
+curl -s -o /dev/null -w "http://127.0.0.1:5002 -> %{http_code}\n" http://127.0.0.1:5002/api/health || true
 tailscale serve status 2>/dev/null | grep -E "forkcast|5002" || true
