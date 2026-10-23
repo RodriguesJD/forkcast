@@ -27,7 +27,8 @@ textarea { padding: 8px; border: 1px solid #bbb; border-radius: 6px; background:
 button { min-height: var(--tap); padding: 6px 14px; border: 1px solid #bbb; border-radius: 6px; background: #fff; }
 button:disabled { opacity: 0.6; cursor: default; }
 button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-button.link { display: inline; min-height: 0; padding: 0; border: none; background: none; color: var(--link); text-decoration: underline; }
+button.link { display: inline; min-height: 0; padding: 0; border: none; background: none; color: var(--link); text-decoration: underline; text-align: left; }
+button.link.small { font-size: 0.85em; }
 button.icon { width: var(--tap); padding: 0; font-size: 1.2em; line-height: 1; color: var(--muted); }
 h2 { font-size: 1.2rem; margin: 0 0 12px; }
 h3 { font-size: 1rem; }
@@ -97,6 +98,20 @@ ul.errors { padding-left: 28px; }
 .shopping .conflict { display: block; color: var(--danger); font-size: 0.8em; }
 .shopping .staples { color: #666; font-size: 0.9em; }
 
+/* edits on the list */
+.shopping li .icon { margin: 8px 0 0; flex: none; border: none; }
+.shopping .add-item { margin: 8px 0 20px; padding: 12px; background: #fff; border: 1px solid var(--border); border-radius: 8px; }
+.shopping .add-item h3 { margin: 0 0 8px; padding: 0; position: static; text-transform: none; border: none; background: none; }
+.shopping .add-item .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.shopping .add-item .fields input, .shopping .add-item .fields select { width: 100%; min-width: 0; }
+.shopping .add-item .fields input[type='text'] { grid-column: 1 / -1; }
+.shopping .add-item .fields button { grid-column: 1 / -1; }
+.shopping .add-item .errors { margin: 8px 0 0; }
+.shopping .hidden-items { margin: 0 0 16px; color: var(--muted); }
+.shopping .hidden-items summary { cursor: pointer; padding: 8px 0; }
+.shopping .hidden-items ul { list-style: none; margin: 0; padding: 0; }
+.shopping .hidden-items li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid #eee; }
+
 /* ---------- cook ---------- */
 .schedule .day { margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
 .schedule .day.over { border-color: var(--danger); }
@@ -145,6 +160,36 @@ ul.errors { padding-left: 28px; }
 .recipe-form > button { align-self: flex-start; }
 .recipe-form .actions { display: flex; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 
+/* recipe read view */
+.recipe-view { max-width: 720px; }
+.recipe-view .toolbar { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.recipe-view h2 { margin: 4px 0 2px; font-size: 1.5rem; }
+.recipe-view h3 { margin: 18px 0 6px; }
+.recipe-view .servings { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.recipe-view .servings input { width: 4em; text-align: center; }
+.recipe-view ul, .recipe-view ol { margin: 0; padding-left: 22px; }
+.recipe-view li { padding: 4px 0; }
+.recipe-view .steps-read li { padding: 6px 0; line-height: 1.5; }
+
+/* import */
+.import-view { max-width: 720px; display: flex; flex-direction: column; gap: 12px; }
+.import-view .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.import-view .toolbar h2 { margin: 0; }
+.import-view .card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.import-view .card h3 { margin: 0; }
+.import-view .card p { margin: 0; }
+.import-view label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9em; color: #444; }
+.import-view input, .import-view textarea { width: 100%; }
+.import-view .card button { align-self: flex-start; }
+.import-view label.file input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.import-view label.file { align-self: flex-start; }
+.import-view .primary-look { display: inline-block; min-height: var(--tap); padding: 8px 14px; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
+
+.recipe-form textarea { width: 100%; min-width: 0; }
+.recipe-form > label textarea { max-width: none; }
+.recipe-form .ingredient .original { grid-column: 1 / -1; font-size: 0.8em; }
+.recipe-list .info .name { font-weight: 600; font-size: 1.05em; color: inherit; text-decoration: none; }
+
 /* ---------- settings ---------- */
 .settings label { display: block; margin: 10px 0; }
 .settings .slots label { display: inline-flex; align-items: center; gap: 4px; margin: 0 12px 0 0; white-space: nowrap; }
@@ -175,9 +220,14 @@ ul.errors { padding-left: 28px; }
   .shopping li label { padding: 6px 0; }
   .shopping .name, .shopping .sources, .shopping .conflict { display: inline; }
   .shopping li input[type='checkbox'] { width: 18px; height: 18px; margin-top: 9px; }
+  .shopping li .icon { margin-top: 4px; }
+  .shopping .add-item .fields { grid-template-columns: 2fr 80px 100px 130px auto; }
+  .shopping .add-item .fields input[type='text'], .shopping .add-item .fields button { grid-column: auto; }
   .recipe-list li { flex-direction: row; align-items: center; justify-content: space-between; }
   .recipe-form .ingredient.head { display: grid; padding: 0 8px; border: none; background: none; font-size: 0.8em; color: var(--muted); }
   .recipe-form .ingredient { grid-template-columns: 3fr 1fr 1fr 1.4fr 2fr auto; grid-template-areas: 'name amount unit section prep remove'; }
+  .recipe-form .ingredient.imported { grid-template-areas: 'original original original original original original' 'name amount unit section prep remove'; }
+  .recipe-form .ingredient .original { grid-area: original; }
   .recipe-form .step { grid-template-columns: 1fr auto auto auto; grid-template-areas: 'desc days min remove'; }
   .settings .days { grid-template-columns: repeat(7, 1fr); }
 }

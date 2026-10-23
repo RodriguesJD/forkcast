@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import {
   ALL_UNITS,
+  guessSection,
   parseRecipeInput,
   STORE_SECTION_ORDER,
   type Recipe,
+  type RecipeDraft,
   type RecipeInput,
   type StoreSection,
   type Unit,
@@ -13,7 +15,8 @@ import {
  * Create / edit one recipe. The draft keeps numbers as text so a half-typed
  * field never snaps to a value behind the user's back; `parseRecipeInput`
  * (the same validation the server runs) turns the draft into a recipe or a
- * list of errors on submit.
+ * list of errors on submit. An import lands here too, prefilled, so nothing
+ * from a web page or a photo is saved without a person looking at it.
  */
 
 interface IngredientDraft {
@@ -23,6 +26,8 @@ interface IngredientDraft {
   unit: Unit;
   section: StoreSection;
   prep: string;
+  /** The source line, when imported. */
+  original?: string;
 }
 
 interface StepDraft {
@@ -33,13 +38,16 @@ interface StepDraft {
   activeMinutes: string;
 }
 
-interface Draft {
+export interface RecipeFormDraft {
   name: string;
   baseServings: string;
   activeMinutes: string;
   totalMinutes: string;
   ingredients: IngredientDraft[];
   advancePrep: StepDraft[];
+  /** One step per line. */
+  instructions: string;
+  sourceUrl: string;
 }
 
 let keyCounter = 0;
@@ -53,7 +61,7 @@ function blankStep(): StepDraft {
   return { key: nextKey(), id: '', description: '', leadDays: '1', activeMinutes: '5' };
 }
 
-function draftFrom(recipe: Recipe | undefined, defaultServings: number): Draft {
+function draftFrom(recipe: Recipe | undefined, defaultServings: number): RecipeFormDraft {
   if (!recipe) {
     return {
       name: '',
@@ -62,6 +70,8 @@ function draftFrom(recipe: Recipe | undefined, defaultServings: number): Draft {
       totalMinutes: '',
       ingredients: [blankIngredient()],
       advancePrep: [],
+      instructions: '',
+      sourceUrl: '',
     };
   }
   return {
@@ -84,6 +94,38 @@ function draftFrom(recipe: Recipe | undefined, defaultServings: number): Draft {
       leadDays: String(s.leadDays),
       activeMinutes: String(s.activeMinutes),
     })),
+    instructions: (recipe.instructions ?? []).join('\n'),
+    sourceUrl: recipe.sourceUrl ?? '',
+  };
+}
+
+const str = (n: number | undefined) => (n === undefined ? '' : String(Math.round(n * 1000) / 1000));
+
+/** An import result as a form draft: every field editable, nothing lost. */
+export function draftFromImport(d: RecipeDraft, defaultServings: number): RecipeFormDraft {
+  return {
+    name: d.name ?? '',
+    baseServings: str(d.baseServings) || String(defaultServings),
+    activeMinutes: str(d.activeMinutes),
+    totalMinutes: str(d.totalMinutes),
+    ingredients: (d.ingredients.length > 0 ? d.ingredients : [{ name: '' }]).map((i) => ({
+      key: nextKey(),
+      name: i.name,
+      amount: str(i.amount),
+      unit: i.unit ?? 'each',
+      section: i.section ?? guessSection(i.name),
+      prep: i.prep ?? '',
+      original: i.original,
+    })),
+    advancePrep: d.advancePrep.map((s) => ({
+      key: nextKey(),
+      id: '',
+      description: s.description,
+      leadDays: String(s.leadDays),
+      activeMinutes: String(s.activeMinutes),
+    })),
+    instructions: d.instructions.join('\n'),
+    sourceUrl: d.sourceUrl ?? '',
   };
 }
 
@@ -91,7 +133,7 @@ function num(text: string): number {
   return text.trim() === '' ? NaN : Number(text);
 }
 
-function toRaw(d: Draft): unknown {
+function toRaw(d: RecipeFormDraft): unknown {
   return {
     name: d.name,
     baseServings: num(d.baseServings),
@@ -109,23 +151,29 @@ function toRaw(d: Draft): unknown {
       leadDays: num(s.leadDays),
       activeMinutes: num(s.activeMinutes),
     })),
+    instructions: d.instructions.split(/\r?\n/),
+    sourceUrl: d.sourceUrl,
   };
 }
 
 interface Props {
   recipe?: Recipe;
+  /** Prefilled draft from an import; wins over `recipe` for the initial values. */
+  initialDraft?: RecipeFormDraft;
+  /** Shown above an imported draft, e.g. which parts to double-check. */
+  note?: string;
   defaultServings: number;
   /** Resolves when saved; rejects with an Error whose message is shown. */
   onSave: (input: RecipeInput) => Promise<void>;
   onCancel: () => void;
 }
 
-export function RecipeForm({ recipe, defaultServings, onSave, onCancel }: Props) {
-  const [draft, setDraft] = useState<Draft>(() => draftFrom(recipe, defaultServings));
+export function RecipeForm({ recipe, initialDraft, note, defaultServings, onSave, onCancel }: Props) {
+  const [draft, setDraft] = useState<RecipeFormDraft>(() => initialDraft ?? draftFrom(recipe, defaultServings));
   const [errors, setErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
-  function patch(p: Partial<Draft>) {
+  function patch(p: Partial<RecipeFormDraft>) {
     setDraft((d) => ({ ...d, ...p }));
   }
   function patchIngredient(key: number, p: Partial<IngredientDraft>) {
@@ -153,9 +201,12 @@ export function RecipeForm({ recipe, defaultServings, onSave, onCancel }: Props)
     }
   }
 
+  const title = initialDraft ? 'Check the imported recipe' : recipe ? `Edit ${recipe.name}` : 'New recipe';
+
   return (
     <form className="recipe-form" onSubmit={submit}>
-      <h2>{recipe ? `Edit ${recipe.name}` : 'New recipe'}</h2>
+      <h2>{title}</h2>
+      {note && <div className="notice">{note}</div>}
 
       <label>
         Name
@@ -189,7 +240,8 @@ export function RecipeForm({ recipe, defaultServings, onSave, onCancel }: Props)
           <span />
         </div>
         {draft.ingredients.map((ing, i) => (
-          <div className="ingredient" key={ing.key}>
+          <div className={`ingredient${ing.original ? ' imported' : ''}`} key={ing.key}>
+            {ing.original && <div className="original muted">“{ing.original}”</div>}
             <input className="ing-name" type="text" placeholder="yellow onion" aria-label={`Ingredient ${i + 1} name`} value={ing.name} onChange={(e) => patchIngredient(ing.key, { name: e.target.value })} />
             <input className="ing-amount" type="number" min={0} step="any" inputMode="decimal" placeholder="amount" aria-label={`Ingredient ${i + 1} amount`} value={ing.amount} onChange={(e) => patchIngredient(ing.key, { amount: e.target.value })} />
             <select className="ing-unit" aria-label={`Ingredient ${i + 1} unit`} value={ing.unit} onChange={(e) => patchIngredient(ing.key, { unit: e.target.value as Unit })}>
@@ -223,6 +275,18 @@ export function RecipeForm({ recipe, defaultServings, onSave, onCancel }: Props)
         + Add ingredient
       </button>
 
+      <h3>Steps</h3>
+      <label>
+        <span className="muted">One step per line.</span>
+        <textarea
+          rows={Math.min(14, Math.max(4, draft.instructions.split('\n').length + 1))}
+          value={draft.instructions}
+          aria-label="Steps"
+          placeholder={'Boil the pasta.\nMeanwhile, warm the garlic in the oil.'}
+          onChange={(e) => patch({ instructions: e.target.value })}
+        />
+      </label>
+
       <h3>Advance prep</h3>
       <p className="muted">Things to do on an earlier day: marinate, thaw, soak. They show up on the cook schedule.</p>
       {draft.advancePrep.map((step, i) => (
@@ -250,6 +314,11 @@ export function RecipeForm({ recipe, defaultServings, onSave, onCancel }: Props)
       <button type="button" onClick={() => setDraft((d) => ({ ...d, advancePrep: [...d.advancePrep, blankStep()] }))}>
         + Add prep step
       </button>
+
+      <label>
+        Source (optional)
+        <input type="url" inputMode="url" placeholder="https://" value={draft.sourceUrl} onChange={(e) => patch({ sourceUrl: e.target.value })} />
+      </label>
 
       {errors.length > 0 && (
         <ul className="errors">

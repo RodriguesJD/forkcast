@@ -1,7 +1,9 @@
-import type { MealSlot, PlanEntry, SlotRef, WeekPlan, WeekSettings, Weekday } from './types';
+import type { ExtraShoppingItem, MealSlot, PlanEntry, ShoppingEdits, SlotRef, WeekPlan, WeekSettings, Weekday } from './types';
 import { MEAL_SLOT_ORDER } from './types';
 import { DAYS_PER_WEEK } from './plan';
 import { defaultSettings } from './defaults';
+import { isUnit } from './units';
+import { isStoreSection, RECIPE_LIMITS } from './recipeInput';
 
 /**
  * Structural validation of a `WeekPlan` received over the wire.
@@ -19,6 +21,8 @@ export const PLAN_LIMITS = {
   maxEntries: DAYS_PER_WEEK * MEAL_SLOT_ORDER.length * 4,
   maxPantryStaples: 500,
   idMaxLength: 200,
+  maxExtras: 500,
+  maxRemoved: 2000,
 } as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -147,4 +151,45 @@ export function parseCheckedInput(raw: unknown, maxKeys = 5000): Record<string, 
     if (v && key.length <= PLAN_LIMITS.idMaxLength) out[key] = true;
   }
   return out;
+}
+
+export type ShoppingEditsParseResult = { ok: true; edits: ShoppingEdits } | { ok: false; errors: string[] };
+
+/** Shape check for the shopping-list edits (hand-added items and hidden keys). */
+export function parseShoppingEditsInput(raw: unknown): ShoppingEditsParseResult {
+  const errors: string[] = [];
+  if (!isRecord(raw)) return { ok: false, errors: ['Shopping edits must be an object.'] };
+  const extras: ExtraShoppingItem[] = [];
+  if (!Array.isArray(raw.extras)) errors.push('extras must be a list.');
+  else if (raw.extras.length > PLAN_LIMITS.maxExtras) errors.push(`extras can hold at most ${PLAN_LIMITS.maxExtras} items.`);
+  else {
+    const ids = new Set<string>();
+    raw.extras.forEach((item: unknown, i: number) => {
+      const label = `extras[${i}]`;
+      if (!isRecord(item) || !isId(item.id) || !isRecord(item.quantity)) {
+        errors.push(`${label} needs an id, a name, a quantity and a section.`);
+        return;
+      }
+      const name = typeof item.name === 'string' ? item.name.trim().replace(/\s+/g, ' ') : '';
+      const amount = item.quantity.amount;
+      const unit = item.quantity.unit;
+      if (name.length === 0 || name.length > RECIPE_LIMITS.textMaxLength) errors.push(`${label}: name is required.`);
+      if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || amount > RECIPE_LIMITS.maxAmount) {
+        errors.push(`${label}: amount must be a number greater than 0.`);
+      }
+      if (typeof unit !== 'string' || !isUnit(unit)) errors.push(`${label}: unknown unit.`);
+      if (typeof item.section !== 'string' || !isStoreSection(item.section)) errors.push(`${label}: unknown section.`);
+      if (ids.has(item.id)) errors.push(`${label}: duplicate id.`);
+      ids.add(item.id);
+      if (name && typeof amount === 'number' && typeof unit === 'string' && isUnit(unit) && typeof item.section === 'string' && isStoreSection(item.section)) {
+        extras.push({ id: item.id, name, quantity: { amount, unit }, section: item.section });
+      }
+    });
+  }
+  let removed: string[] = [];
+  if (!Array.isArray(raw.removed) || !raw.removed.every(isId)) errors.push('removed must be a list of item keys.');
+  else if (raw.removed.length > PLAN_LIMITS.maxRemoved) errors.push('removed holds too many keys.');
+  else removed = Array.from(new Set(raw.removed as string[]));
+  if (errors.length > 0) return { ok: false, errors };
+  return { ok: true, edits: { extras, removed } };
 }

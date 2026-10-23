@@ -17,7 +17,8 @@ is its spec. One real user (Christy) relies on it daily. See README.md for layou
   - Do not run ad-hoc SQL against the production database; the one sanctioned exception is the password-reset snippet in docs/deploy.md.
   - A PR that touches `server/db.ts`, `docker-compose.yml`, the Dockerfile or deploy scripts says in its description how existing data survives the change and the rollback.
 - Domain logic stays pure: nothing in `src/domain/` may import React, Node, touch `window`, or use `Date`. `server/db.ts` is the only code that touches SQLite. Nothing in `src/` may use localStorage: all state is per account on the server (DECISIONS 18).
-- Input validation lives in the domain (`parseRecipeInput`, `parsePlanInput`) and is run by both the form and the server; never validate in only one place.
+- Input validation lives in the domain (`parseRecipeInput`, `parsePlanInput`, `parseShoppingEditsInput`) and is run by both the form and the server; never validate in only one place.
+- `server/claude.ts` is the only code that calls the Claude API (`claude-opus-5-5`, structured output). The key comes from `ANTHROPIC_API_KEY` via `~/forkcast/.env` on the box; it is never committed, logged or sent to the browser. Every feature must keep working without it (rule-based fallback or a clear "off" message).
 - Every domain decision gets an entry in `docs/DECISIONS.md` (Decision / Why / Known limits).
 
 ## Commands

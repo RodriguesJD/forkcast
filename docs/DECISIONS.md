@@ -356,3 +356,75 @@ be seen nor removed.
 
 **Known limits.** No dark mode. CSS subgrid needs Safari 16+/Chrome 117+;
 older browsers show the columns without the row alignment.
+
+## 24. Recipes carry their steps and their source
+
+**Decision.** `Recipe.instructions` is an ordered list of step texts and
+`Recipe.sourceUrl` an optional http(s) address, both optional in the type
+(the shipped sample recipes have neither). `parseRecipeInput` trims steps,
+drops empty ones (≤100 steps, ≤2000 chars each) and accepts only http(s)
+sources. The read view (`RecipeView`) shows ingredients scaled to a chosen
+serving count via `scaleIngredients`, then the steps; it is reachable from the
+Recipes tab and from any planned meal.
+
+**Why.** A planner that cannot show how to cook the dish gets abandoned at
+6pm. Steps are free text on purpose: structured steps (timers, temperatures)
+would make entry and import harder for no planning benefit.
+
+**Known limits.** Steps are not linked to ingredients; no photos; no notes
+field separate from the steps.
+
+## 25. The shopping list is generated, and the user's edits are an overlay
+
+**Decision.** `ShoppingEdits` holds hand-added items (`extras`, each with a
+quantity and a section, keyed `extra:<id>` in the list) and the keys of
+generated items hidden this week (`removed`). `applyShoppingEdits` layers them
+over the list `buildShoppingList` produces; the generated list itself is never
+edited. Hidden items stay listed under "hidden this week" and can be put
+back. "Clear the week" resets the plan, the ticks and the edits together.
+
+**Why.** The list must keep following the plan: change a meal and the list
+changes. Editing generated lines directly would either be lost on the next
+rebuild or stop the rebuild from happening. An overlay keeps both.
+
+**Known limits.** A generated item's quantity cannot be adjusted (hide it and
+add your own line instead). Edits are per week, not a standing list.
+
+## 26. Importing a recipe always ends in the form
+
+**Decision.** Imports (a web address, pasted text, a photo) produce a
+`RecipeDraft`, not a recipe: fields may be missing. The draft opens in the
+recipe form, prefilled, with the original line shown under each ingredient,
+and nothing is saved until the person presses Add. Web pages are read from
+their schema.org `Recipe` JSON-LD first (`extractJsonLdRecipe`, pure); only
+pages without it, pasted text, and photos go to Claude (`server/claude.ts`,
+`claude-opus-5-5` with a structured output schema), when the server has an
+`ANTHROPIC_API_KEY`. Without a key, text falls back to the rule-based parser
+and photo import is reported as off. The server fetches only public hosts
+(`isFetchableUrl`: no LAN, loopback or `.local`), caps pages at 3 MB and
+photos at ~5 MB, and the browser shrinks photos to 1600 px before upload.
+
+**Why.** Imports are never perfect; the review step is the safety net and
+keeps the data rules (Decision 19) in one place. Structured data first keeps
+most imports free and offline-capable.
+
+**Known limits.** Multi-recipe pages take the first recipe. Sites that block
+non-browser clients fail with a clear message (paste the text instead).
+
+## 27. Ingredient lines are parsed by rule, forgivingly
+
+**Decision.** `parseIngredientLine` reads "1 ½ cups all-purpose flour,
+sifted" into amount, unit (via a synonym table onto the unit model of
+Decision 7), name (up to the first comma) and prep (after it). Unicode and
+mixed fractions, ranges ("2–3": the low end), "(14 oz)" notes, "to taste"
+(1 pinch) and bare items ("1 lime": 1 each) are handled. `guessSection`
+assigns a store section from keyword lists, with produce winning for
+"fresh …" and spices for "black pepper". Anything unreadable becomes
+amount 1 "each" with the whole line as the name, never dropped.
+
+**Why.** Recipe sites publish ingredients as prose; this is the no-API path
+and the one the Swift port will need. Forgiving beats strict because the
+person sees the original line and the result side by side.
+
+**Known limits.** English only; no metric/US conversion; section guesses
+are heuristics and the review step exists to fix them.

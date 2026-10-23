@@ -1,8 +1,9 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Recipe, WeekPlan } from '../src/domain/types';
+import type { Recipe, ShoppingEdits, WeekPlan } from '../src/domain/types';
 import { defaultSettings } from '../src/domain/defaults';
+import { emptyShoppingEdits } from '../src/domain/shopping';
 
 /**
  * The only module that talks to SQLite. Everything is synchronous (node:sqlite
@@ -11,7 +12,13 @@ import { defaultSettings } from '../src/domain/defaults';
  * ever queries inside them and the Recipe type must round-trip unchanged.
  */
 
-export const SCHEMA_VERSION = 1;
+/**
+ * Bump when adding a migration below. Migrations are additive only (new tables,
+ * new columns with defaults, new indexes): the database on the box is live data,
+ * an older server must still open a newer file, and a failed step must leave the
+ * file untouched (each migration runs in one transaction). See CLAUDE.md.
+ */
+export const SCHEMA_VERSION = 2;
 
 export interface UserRow {
   id: number;
@@ -30,6 +37,7 @@ export interface SessionRow {
 export interface UserState {
   plan: WeekPlan;
   checked: Record<string, boolean>;
+  shoppingEdits: ShoppingEdits;
 }
 
 export function openDatabase(file: string): DatabaseSync {
@@ -49,8 +57,8 @@ export function openMemoryDatabase(): DatabaseSync {
   return db;
 }
 
-function migrate(db: DatabaseSync): void {
-  db.exec(`
+/** The v1 schema. Later versions only ever add to it (see MIGRATIONS). */
+export const BASE_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS users (
       id            INTEGER PRIMARY KEY,
@@ -84,11 +92,54 @@ function migrate(db: DatabaseSync): void {
       checked_json TEXT NOT NULL,
       updated_at   TEXT NOT NULL
     );
-  `);
+`;
+
+function hasColumn(db: DatabaseSync, table: string, column: string): boolean {
+  return (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === column);
+}
+
+function addColumn(db: DatabaseSync, table: string, column: string, definition: string): void {
+  if (!hasColumn(db, table, column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+/** MIGRATIONS[n] brings a version n-1 database to version n. Version 1 is BASE_SCHEMA_SQL. */
+const MIGRATIONS: Record<number, (db: DatabaseSync) => void> = {
+  2: (db) => {
+    addColumn(db, 'recipes', 'instructions_json', "TEXT NOT NULL DEFAULT '[]'");
+    addColumn(db, 'recipes', 'source_url', 'TEXT');
+    addColumn(db, 'plans', 'shopping_edits_json', `TEXT NOT NULL DEFAULT '{"extras":[],"removed":[]}'`);
+  },
+};
+
+export function schemaVersion(db: DatabaseSync): number {
   const row = db.prepare('SELECT version FROM schema_version LIMIT 1').get() as { version: number } | undefined;
-  if (!row) db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(SCHEMA_VERSION);
-  else if (row.version > SCHEMA_VERSION) {
-    throw new Error(`database schema version ${row.version} is newer than this build (${SCHEMA_VERSION})`);
+  return row?.version ?? 0;
+}
+
+function migrate(db: DatabaseSync): void {
+  db.exec(BASE_SCHEMA_SQL);
+  let version = schemaVersion(db);
+  if (version === 0) {
+    db.prepare('INSERT INTO schema_version (version) VALUES (1)').run();
+    version = 1;
+  }
+  if (version > SCHEMA_VERSION) {
+    throw new Error(`database schema version ${version} is newer than this build (${SCHEMA_VERSION})`);
+  }
+  while (version < SCHEMA_VERSION) {
+    const next = version + 1;
+    const step = MIGRATIONS[next];
+    if (!step) throw new Error(`no migration to schema version ${next}`);
+    db.exec('BEGIN');
+    try {
+      step(db);
+      db.prepare('UPDATE schema_version SET version = ?').run(next);
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+    version = next;
   }
 }
 
@@ -169,7 +220,7 @@ export function deleteExpiredSessions(db: DatabaseSync): number {
 // ---------- recipes ----------
 
 function toRecipe(row: Record<string, unknown>): Recipe {
-  return {
+  const recipe: Recipe = {
     id: row.id as string,
     name: row.name as string,
     baseServings: row.base_servings as number,
@@ -177,7 +228,10 @@ function toRecipe(row: Record<string, unknown>): Recipe {
     totalMinutes: row.total_minutes as number,
     ingredients: JSON.parse(row.ingredients_json as string),
     advancePrep: JSON.parse(row.advance_prep_json as string),
+    instructions: JSON.parse((row.instructions_json as string | null) ?? '[]'),
   };
+  if (typeof row.source_url === 'string' && row.source_url.length > 0) recipe.sourceUrl = row.source_url;
+  return recipe;
 }
 
 export function listRecipes(db: DatabaseSync, userId: number): Recipe[] {
@@ -196,8 +250,8 @@ export function insertRecipe(db: DatabaseSync, userId: number, recipe: Recipe): 
   const t = now();
   db.prepare(
     `INSERT INTO recipes (user_id, id, name, base_servings, active_minutes, total_minutes,
-       ingredients_json, advance_prep_json, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       ingredients_json, advance_prep_json, instructions_json, source_url, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     userId,
     recipe.id,
@@ -207,6 +261,8 @@ export function insertRecipe(db: DatabaseSync, userId: number, recipe: Recipe): 
     recipe.totalMinutes,
     JSON.stringify(recipe.ingredients),
     JSON.stringify(recipe.advancePrep),
+    JSON.stringify(recipe.instructions ?? []),
+    recipe.sourceUrl ?? null,
     t,
     t,
   );
@@ -228,7 +284,7 @@ export function updateRecipe(db: DatabaseSync, userId: number, recipe: Recipe): 
   const result = db
     .prepare(
       `UPDATE recipes SET name = ?, base_servings = ?, active_minutes = ?, total_minutes = ?,
-         ingredients_json = ?, advance_prep_json = ?, updated_at = ?
+         ingredients_json = ?, advance_prep_json = ?, instructions_json = ?, source_url = ?, updated_at = ?
        WHERE user_id = ? AND id = ?`,
     )
     .run(
@@ -238,6 +294,8 @@ export function updateRecipe(db: DatabaseSync, userId: number, recipe: Recipe): 
       recipe.totalMinutes,
       JSON.stringify(recipe.ingredients),
       JSON.stringify(recipe.advancePrep),
+      JSON.stringify(recipe.instructions ?? []),
+      recipe.sourceUrl ?? null,
       now(),
       userId,
       recipe.id,
@@ -251,12 +309,15 @@ export function deleteRecipe(db: DatabaseSync, userId: number, id: string): bool
 
 // ---------- plan + shopping checkboxes ----------
 
+const EMPTY_EDITS_JSON = JSON.stringify(emptyShoppingEdits());
+
 export function getUserState(db: DatabaseSync, userId: number): UserState {
-  const row = db.prepare('SELECT plan_json, checked_json FROM plans WHERE user_id = ?').get(userId);
-  if (!row) return { plan: { settings: defaultSettings(), entries: [] }, checked: {} };
+  const row = db.prepare('SELECT plan_json, checked_json, shopping_edits_json FROM plans WHERE user_id = ?').get(userId);
+  if (!row) return { plan: { settings: defaultSettings(), entries: [] }, checked: {}, shoppingEdits: emptyShoppingEdits() };
   return {
     plan: JSON.parse(row.plan_json as string),
     checked: JSON.parse(row.checked_json as string),
+    shoppingEdits: JSON.parse((row.shopping_edits_json as string | null) ?? EMPTY_EDITS_JSON),
   };
 }
 
@@ -273,6 +334,14 @@ export function saveChecked(db: DatabaseSync, userId: number, checked: Record<st
     `INSERT INTO plans (user_id, plan_json, checked_json, updated_at) VALUES (?, ?, ?, ?)
      ON CONFLICT(user_id) DO UPDATE SET checked_json = excluded.checked_json, updated_at = excluded.updated_at`,
   ).run(userId, plan, JSON.stringify(checked), now());
+}
+
+export function saveShoppingEdits(db: DatabaseSync, userId: number, edits: ShoppingEdits): void {
+  const plan = JSON.stringify({ settings: defaultSettings(), entries: [] });
+  db.prepare(
+    `INSERT INTO plans (user_id, plan_json, checked_json, shopping_edits_json, updated_at) VALUES (?, ?, '{}', ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET shopping_edits_json = excluded.shopping_edits_json, updated_at = excluded.updated_at`,
+  ).run(userId, plan, JSON.stringify(edits), now());
 }
 
 // ---------- backups ----------

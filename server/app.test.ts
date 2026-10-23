@@ -262,6 +262,7 @@ describe('plan and shopping state', () => {
     expect(await json(await me.get('/api/state'))).toEqual({
       plan: { settings: defaultSettings(), entries: [] },
       checked: {},
+      shoppingEdits: { extras: [], removed: [] },
     });
   });
 
@@ -272,7 +273,7 @@ describe('plan and shopping state', () => {
     };
     expect((await me.send('PUT', '/api/plan', plan)).status).toBe(200);
     expect((await me.send('PUT', '/api/checked', { 'ground beef|mass': true, 'garlic|clove': false })).status).toBe(200);
-    expect(await json(await me.get('/api/state'))).toEqual({ plan, checked: { 'ground beef|mass': true } });
+    expect(await json(await me.get('/api/state'))).toEqual({ plan, checked: { 'ground beef|mass': true }, shoppingEdits: { extras: [], removed: [] } });
 
     // Saving one does not clobber the other.
     expect((await me.send('PUT', '/api/plan', { ...plan, entries: [] })).status).toBe(200);

@@ -34,7 +34,7 @@ describe('parseRecipeInput', () => {
 
   it('drops unknown fields and never keeps a client-supplied id', () => {
     const r = parseRecipeInput({ ...valid, id: 'evil', extra: 1 });
-    expect(r.ok && Object.keys(r.recipe).sort()).toEqual(['activeMinutes', 'advancePrep', 'baseServings', 'ingredients', 'name', 'totalMinutes']);
+    expect(r.ok && Object.keys(r.recipe).sort()).toEqual(['activeMinutes', 'advancePrep', 'baseServings', 'ingredients', 'instructions', 'name', 'totalMinutes']);
   });
 
   it('treats missing advancePrep as empty', () => {
@@ -83,6 +83,17 @@ describe('parseRecipeInput', () => {
   it('rejects strings where numbers are expected and non-finite amounts', () => {
     const r = parseRecipeInput({ ...valid, ingredients: [{ ...valid.ingredients[0], quantity: { amount: Infinity, unit: 'lb' } }] });
     expect(r.ok).toBe(false);
+  });
+
+  it('keeps instructions as trimmed non-empty steps and validates the source url', () => {
+    const r = parseRecipeInput({ ...valid, instructions: [' Boil water. ', '', 'Cook  pasta.'], sourceUrl: ' https://example.com/lemon-pasta ' });
+    expect(r.ok && r.recipe.instructions).toEqual(['Boil water.', 'Cook pasta.']);
+    expect(r.ok && r.recipe.sourceUrl).toBe('https://example.com/lemon-pasta');
+    expect(parseRecipeInput({ ...valid, sourceUrl: '' }).ok && 'sourceUrl' in (parseRecipeInput({ ...valid, sourceUrl: '' }) as { recipe: object }).recipe).toBe(false);
+    expect(parseRecipeInput({ ...valid, sourceUrl: 'javascript:alert(1)' }).ok).toBe(false);
+    expect(parseRecipeInput({ ...valid, sourceUrl: 'not a url' }).ok).toBe(false);
+    expect(parseRecipeInput({ ...valid, instructions: 'one string' }).ok).toBe(false);
+    expect(parseRecipeInput({ ...valid, instructions: [1] }).ok).toBe(false);
   });
 
   it('enforces length limits', () => {
