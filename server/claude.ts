@@ -1,9 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
-import { ALL_UNITS } from '../src/domain/units';
+import { ALL_UNITS, isUnit } from '../src/domain/units';
 import { STORE_SECTION_ORDER } from '../src/domain/shopping';
+import { guessSection, parseIngredientLine } from '../src/domain/ingredientText';
 import type { RecipeDraft } from '../src/domain/importRecipe';
+import { isStoreSection } from '../src/domain/recipeInput';
 import type { StoreSection, Unit } from '../src/domain/types';
 
 /**
@@ -25,8 +27,8 @@ const RecipeSchema = z.object({
     z.object({
       name: z.string().describe('the ingredient alone, e.g. "yellow onion", without amount, unit or prep'),
       amount: z.number().nullable().describe('numeric; fractions as decimals; null only if truly unknown'),
-      unit: z.enum(ALL_UNITS as unknown as [Unit, ...Unit[]]).nullable(),
-      section: z.enum(STORE_SECTION_ORDER as unknown as [StoreSection, ...StoreSection[]]),
+      unit: z.string().nullable().describe(`one of: ${ALL_UNITS.join(', ')}; null for whole items`),
+      section: z.string().describe(`one of: ${STORE_SECTION_ORDER.join(', ')}`),
       prep: z.string().nullable().describe('e.g. "diced", "minced"; null when none'),
       original: z.string().describe('the line exactly as written in the source'),
     }),
@@ -35,8 +37,8 @@ const RecipeSchema = z.object({
   advancePrep: z.array(
     z.object({
       description: z.string(),
-      leadDays: z.number().int().min(1).max(6),
-      activeMinutes: z.number().int().min(0),
+      leadDays: z.number().describe('whole days before the cook day, 1 to 6'),
+      activeMinutes: z.number().describe('hands-on minutes, 0 or more'),
     }),
   ).describe('only steps the recipe says to do a day or more ahead: marinate overnight, soak beans, thaw'),
 });
@@ -62,6 +64,28 @@ export class ExtractionError extends Error {
   }
 }
 
+/** Units the model may answer with that are not our exact names ("tablespoon", "pounds"). */
+function normaliseUnit(value: string | null | undefined): Unit {
+  if (!value) return 'each';
+  const v = value.trim().toLowerCase();
+  if (isUnit(v)) return v;
+  const parsed = parseIngredientLine(`1 ${v} x`);
+  return parsed?.quantity.unit ?? 'each';
+}
+
+function normaliseSection(value: string | undefined, name: string): StoreSection {
+  const v = (value ?? '').trim().toLowerCase().replace(/\s+/g, '-');
+  return isStoreSection(v) ? v : guessSection(name);
+}
+
+const clampInt = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(n)));
+
+let log: (line: string) => void = () => {};
+/** Where to send diagnostics (the server's logger). Never logs the key or the input. */
+export function setClaudeLogger(fn: (line: string) => void): void {
+  log = fn;
+}
+
 export type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
 
 export interface ExtractInput {
@@ -74,6 +98,48 @@ let client: Anthropic | undefined;
 function getClient(): Anthropic {
   client ??= new Anthropic({ timeout: 120_000, maxRetries: 1 });
   return client;
+}
+
+/**
+ * Read a page through Claude's own web fetch tool, for sites that refuse the box's
+ * direct request. Returns the page's recipe as plain text for extractRecipeWithClaude,
+ * or throws an ExtractionError when the tool could not fetch it either.
+ */
+export async function fetchPageTextWithClaude(url: string): Promise<string> {
+  if (!claudeAvailable()) throw new ExtractionError(503, 'Reading that page needs an ANTHROPIC_API_KEY on the server.');
+  let response: Anthropic.Message;
+  try {
+    response = await getClient().messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: 16000,
+      tools: [{ type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 2 }],
+      messages: [
+        {
+          role: 'user',
+          content: `Fetch ${url} and write out the recipe it contains as plain text: the title, how many servings, prep/cook/total times, every ingredient line exactly as written, and the numbered steps. Nothing else; no commentary. If the page has no recipe, reply exactly: NO RECIPE`,
+        },
+      ],
+    });
+  } catch (err) {
+    if (err instanceof Anthropic.APIError) {
+      log(`claude web_fetch error ${err.status}: ${err.message}`);
+      throw new ExtractionError(502, `Could not read that page (${err.status}).`);
+    }
+    throw err;
+  }
+  for (const block of response.content) {
+    if (block.type === 'web_fetch_tool_result' && !Array.isArray(block.content) && 'error_code' in block.content) {
+      log(`claude web_fetch refused: ${block.content.error_code}`);
+      throw new ExtractionError(422, 'That site refuses automated readers. Copy the recipe text and paste it instead.');
+    }
+  }
+  const text = response.content
+    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('\n')
+    .trim();
+  if (!text || /^NO RECIPE/i.test(text)) throw new ExtractionError(422, 'No recipe was found on that page.');
+  return text;
 }
 
 export async function extractRecipeWithClaude(input: ExtractInput): Promise<RecipeDraft> {
@@ -91,11 +157,9 @@ export async function extractRecipeWithClaude(input: ExtractInput): Promise<Reci
 
   let response;
   try {
-    response = await getClient().beta.messages.parse({
+    response = await getClient().messages.parse({
       model: CLAUDE_MODEL,
       max_tokens: 16000,
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
       system: SYSTEM,
       messages: [{ role: 'user', content }],
       output_config: { format: zodOutputFormat(RecipeSchema) },
@@ -104,9 +168,13 @@ export async function extractRecipeWithClaude(input: ExtractInput): Promise<Reci
     if (err instanceof Anthropic.AuthenticationError) throw new ExtractionError(503, 'The ANTHROPIC_API_KEY on the server was rejected.');
     if (err instanceof Anthropic.RateLimitError) throw new ExtractionError(429, 'Claude is busy right now. Try again in a minute.');
     if (err instanceof Anthropic.APIConnectionError) throw new ExtractionError(502, 'Could not reach Claude. Check the box has internet access.');
-    if (err instanceof Anthropic.APIError) throw new ExtractionError(502, `Claude returned an error (${err.status}).`);
+    if (err instanceof Anthropic.APIError) {
+      log(`claude API error ${err.status}: ${err.message}`);
+      throw new ExtractionError(502, `Claude returned an error (${err.status}): ${err.message.slice(0, 300)}`);
+    }
     throw err;
   }
+  log(`claude extraction: stop=${response.stop_reason} in=${response.usage.input_tokens} out=${response.usage.output_tokens}`);
   if (response.stop_reason === 'refusal') throw new ExtractionError(422, 'Claude declined to read that input.');
   const out = response.parsed_output;
   if (!out) throw new ExtractionError(502, 'Claude answered in an unexpected shape. Try again.');
@@ -120,12 +188,16 @@ export async function extractRecipeWithClaude(input: ExtractInput): Promise<Reci
     ingredients: out.ingredients.map((i) => ({
       name: i.name.trim(),
       amount: i.amount === null ? undefined : i.amount,
-      unit: i.unit ?? 'each',
-      section: i.section,
+      unit: normaliseUnit(i.unit),
+      section: normaliseSection(i.section, i.name),
       prep: i.prep?.trim() || undefined,
       original: i.original,
     })),
-    advancePrep: out.advancePrep,
+    advancePrep: out.advancePrep.map((s) => ({
+      description: s.description,
+      leadDays: clampInt(s.leadDays, 1, 6),
+      activeMinutes: clampInt(s.activeMinutes, 0, 7 * 24 * 60),
+    })),
     instructions: out.instructions.map((s) => s.trim()).filter((s) => s.length > 0),
     sourceUrl: input.sourceUrl,
     source: 'claude',

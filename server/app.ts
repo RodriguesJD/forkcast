@@ -11,6 +11,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { parseRecipeInput } from '../src/domain/recipeInput';
 import { parseCheckedInput, parsePlanInput, parseShoppingEditsInput } from '../src/domain/planInput';
 import { createImportRoutes, type ImportDeps } from './importRoutes';
+import { setClaudeLogger } from './claude';
 import { SEED_RECIPES } from '../src/data/seedRecipes';
 import * as q from './db';
 import {
@@ -57,6 +58,7 @@ function isJsonRequest(c: Context): boolean {
 
 export function createApp({ db, distDir, limiter = new LoginLimiter(), log = () => {}, importDeps }: AppOptions): Hono<Env> {
   const app = new Hono<Env>();
+  setClaudeLogger(log);
 
   // ---------- API ----------
   const api = new Hono<Env>();
