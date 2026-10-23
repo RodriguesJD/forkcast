@@ -9,7 +9,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { parseRecipeInput } from '../src/domain/recipeInput';
-import { parseCheckedInput, parsePlanInput } from '../src/domain/planInput';
+import { parseCheckedInput, parsePlanInput, parseShoppingEditsInput } from '../src/domain/planInput';
+import { createImportRoutes, type ImportDeps } from './importRoutes';
 import { SEED_RECIPES } from '../src/data/seedRecipes';
 import * as q from './db';
 import {
@@ -33,6 +34,8 @@ export interface AppOptions {
   distDir?: string;
   limiter?: LoginLimiter;
   log?: (line: string) => void;
+  /** Overrides for the recipe import routes (tests inject a fake page fetcher / extractor). */
+  importDeps?: ImportDeps;
 }
 
 type Env = { Variables: { user: q.UserRow } };
@@ -52,12 +55,14 @@ function isJsonRequest(c: Context): boolean {
   return /^application\/json\b/i.test(type);
 }
 
-export function createApp({ db, distDir, limiter = new LoginLimiter(), log = () => {} }: AppOptions): Hono<Env> {
+export function createApp({ db, distDir, limiter = new LoginLimiter(), log = () => {}, importDeps }: AppOptions): Hono<Env> {
   const app = new Hono<Env>();
 
   // ---------- API ----------
   const api = new Hono<Env>();
-  api.use('*', bodyLimit({ maxSize: 1024 * 1024 }));
+  const smallBody = bodyLimit({ maxSize: 1024 * 1024 });
+  const photoBody = bodyLimit({ maxSize: 8 * 1024 * 1024 });
+  api.use('*', (c, next) => (c.req.path.endsWith('/import/photo') ? photoBody(c, next) : smallBody(c, next)));
   api.use('*', async (c, next) => {
     // CSRF defence: writes with a body must be JSON. A browser cannot send that content
     // type cross-origin without a CORS preflight (nor a DELETE at all), and this server
@@ -150,6 +155,8 @@ export function createApp({ db, distDir, limiter = new LoginLimiter(), log = () 
   api.use('/state', requireUser);
   api.use('/plan', requireUser);
   api.use('/checked', requireUser);
+  api.use('/shopping-edits', requireUser);
+  api.use('/import/*', requireUser);
   async function requireUser(c: Context<Env>, next: () => Promise<void>) {
     const user = resolveSession(db, getCookie(c, SESSION_COOKIE));
     if (!user) return c.json({ error: 'Not signed in' }, 401);
@@ -195,6 +202,15 @@ export function createApp({ db, distDir, limiter = new LoginLimiter(), log = () 
     q.saveChecked(db, c.get('user').id, checked);
     return c.json({ ok: true });
   });
+
+  api.put('/shopping-edits', async (c) => {
+    const parsed = parseShoppingEditsInput(await readJson(c));
+    if (!parsed.ok) return c.json({ errors: parsed.errors }, 400);
+    q.saveShoppingEdits(db, c.get('user').id, parsed.edits);
+    return c.json({ ok: true });
+  });
+
+  api.route('/import', createImportRoutes(importDeps));
 
   api.all('*', (c) => c.json({ error: 'Not found' }, 404));
   api.onError((err, c) => {

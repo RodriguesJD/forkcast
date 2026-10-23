@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  applyShoppingEdits,
   buildSchedule,
   buildShoppingList,
   clearSlot,
+  emptyShoppingEdits,
+  hiddenShoppingItems,
   setEntry,
   validatePlan,
+  type ExtraShoppingItem,
   type PlanEntry,
   type RecipeIndex,
   type RecipeInput,
+  type ShoppingEdits,
   type SlotRef,
   type WeekPlan,
   type WeekSettings,
@@ -77,6 +82,7 @@ const TABS: Tab[] = ['plan', 'recipes', 'shop', 'cook', 'settings'];
 interface Loaded {
   state: UserState;
   recipes: RecipeIndex;
+  claudeEnabled: boolean;
 }
 
 function Workspace({ user, onSignedOut }: { user: User; onSignedOut: (notice?: string) => void }) {
@@ -84,8 +90,10 @@ function Workspace({ user, onSignedOut }: { user: User; onSignedOut: (notice?: s
 
   const load = useCallback(() => {
     setLoaded(null);
-    Promise.all([api.state(), api.listRecipes()])
-      .then(([state, list]) => setLoaded({ state, recipes: Object.fromEntries(list.map((r) => [r.id, r])) }))
+    Promise.all([api.state(), api.listRecipes(), api.importStatus().catch(() => ({ claude: false }))])
+      .then(([state, list, imp]) =>
+        setLoaded({ state, recipes: Object.fromEntries(list.map((r) => [r.id, r])), claudeEnabled: imp.claude }),
+      )
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) onSignedOut('Please sign in again.');
         else setLoaded({ error: err instanceof Error ? err.message : 'Could not load your data.' });
@@ -110,46 +118,51 @@ function Workspace({ user, onSignedOut }: { user: User; onSignedOut: (notice?: s
 function Planner({ user, initial, onSignedOut }: { user: User; initial: Loaded; onSignedOut: (notice?: string) => void }) {
   const [plan, setPlanState] = useState<WeekPlan>(initial.state.plan);
   const [checked, setCheckedState] = useState<Record<string, boolean>>(initial.state.checked);
+  const [edits, setEditsState] = useState<ShoppingEdits>(initial.state.shoppingEdits ?? emptyShoppingEdits());
   const [recipes, setRecipes] = useState<RecipeIndex>(initial.recipes);
   const [tab, setTab] = useState<Tab>('plan');
-  const [status, setStatus] = useState<{ plan: SaveStatus; checked: SaveStatus }>({ plan: 'saved', checked: 'saved' });
+  const [openRecipe, setOpenRecipe] = useState<{ id: string; nonce: number } | null>(null);
+  const [status, setStatus] = useState<{ plan: SaveStatus; checked: SaveStatus; edits: SaveStatus }>({ plan: 'saved', checked: 'saved', edits: 'saved' });
   const [sessionLost, setSessionLost] = useState(false);
 
   // Latest values live in refs so edit handlers can read-modify-write without
   // putting side effects inside React state updaters.
   const planRef = useRef(plan);
   const checkedRef = useRef(checked);
+  const editsRef = useRef(edits);
 
   // The save queues live for exactly as long as this component is mounted (created in an
   // effect, not useMemo, so StrictMode's mount/unmount/mount in dev gets fresh ones too).
-  const saversRef = useRef<{ plan: Saver<WeekPlan>; checked: Saver<Record<string, boolean>> } | null>(null);
+  const saversRef = useRef<{ plan: Saver<WeekPlan>; checked: Saver<Record<string, boolean>>; edits: Saver<ShoppingEdits> } | null>(null);
   useEffect(() => {
     const isFatal = (err: unknown) => err instanceof ApiError && !err.retryable;
-    const onStatus = (key: 'plan' | 'checked') => (s: SaveStatus, detail: { error?: unknown }) => {
+    const onStatus = (key: 'plan' | 'checked' | 'edits') => (s: SaveStatus, detail: { error?: unknown }) => {
       setStatus((prev) => ({ ...prev, [key]: s }));
       if (s === 'failed' && detail.error instanceof ApiError && detail.error.status === 401) setSessionLost(true);
     };
     const savers = {
       plan: createSaver(api.savePlan, { isFatal, onStatus: onStatus('plan') }),
       checked: createSaver(api.saveChecked, { isFatal, onStatus: onStatus('checked') }),
+      edits: createSaver(api.saveShoppingEdits, { isFatal, onStatus: onStatus('edits') }),
     };
+    const all = [savers.plan, savers.checked, savers.edits];
     saversRef.current = savers;
     const warn = (e: BeforeUnloadEvent) => {
-      if (!savers.plan.hasPending() && !savers.checked.hasPending()) return;
-      savers.plan.flush();
-      savers.checked.flush();
+      if (!all.some((s) => s.hasPending())) return;
+      for (const s of all) s.flush();
       e.preventDefault();
     };
     window.addEventListener('beforeunload', warn);
     return () => {
       window.removeEventListener('beforeunload', warn);
-      savers.plan.dispose();
-      savers.checked.dispose();
+      for (const s of all) s.dispose();
       if (saversRef.current === savers) saversRef.current = null;
     };
   }, []);
-  const hasPending = () =>
-    saversRef.current !== null && (saversRef.current.plan.hasPending() || saversRef.current.checked.hasPending());
+  const hasPending = () => {
+    const s = saversRef.current;
+    return s !== null && (s.plan.hasPending() || s.checked.hasPending() || s.edits.hasPending());
+  };
 
   function updatePlan(fn: (p: WeekPlan) => WeekPlan) {
     const next = fn(planRef.current);
@@ -163,10 +176,39 @@ function Planner({ user, initial, onSignedOut }: { user: User; initial: Loaded; 
     setCheckedState(next);
     saversRef.current?.checked.set(next);
   }
+  function updateEdits(fn: (e: ShoppingEdits) => ShoppingEdits) {
+    const next = fn(editsRef.current);
+    editsRef.current = next;
+    setEditsState(next);
+    saversRef.current?.edits.set(next);
+  }
 
   const planWarnings = useMemo(() => validatePlan(plan, recipes), [plan, recipes]);
-  const shopping = useMemo(() => buildShoppingList(plan, recipes), [plan, recipes]);
+  const generated = useMemo(() => buildShoppingList(plan, recipes), [plan, recipes]);
+  const shopping = useMemo(() => applyShoppingEdits(generated, edits), [generated, edits]);
+  const hidden = useMemo(() => hiddenShoppingItems(generated, edits), [generated, edits]);
   const schedule = useMemo(() => buildSchedule(plan, recipes), [plan, recipes]);
+
+  function addExtra(item: Omit<ExtraShoppingItem, 'id'>) {
+    updateEdits((e) => ({ ...e, extras: [...e.extras, { id: newId(), ...item }] }));
+  }
+  function deleteExtra(id: string) {
+    updateEdits((e) => ({ ...e, extras: e.extras.filter((x) => x.id !== id) }));
+    updateChecked((c) => {
+      const { [`extra:${id}`]: _gone, ...rest } = c;
+      return rest;
+    });
+  }
+  function hideItem(key: string) {
+    updateEdits((e) => (e.removed.includes(key) ? e : { ...e, removed: [...e.removed, key] }));
+  }
+  function unhideItem(key: string) {
+    updateEdits((e) => ({ ...e, removed: e.removed.filter((k) => k !== key) }));
+  }
+  function viewRecipe(id: string) {
+    setOpenRecipe({ id, nonce: Date.now() });
+    setTab('recipes');
+  }
 
   function onSet(entry: PlanEntry) {
     updatePlan((p) => setEntry(p, entry));
@@ -178,9 +220,10 @@ function Planner({ user, initial, onSignedOut }: { user: User; initial: Loaded; 
     updatePlan((p) => ({ ...p, settings }));
   }
   function resetWeek() {
-    if (window.confirm('Remove every meal from this week?')) {
+    if (window.confirm('Remove every meal from this week? The shopping list, its ticks and your added items are cleared too.')) {
       updatePlan((p) => ({ ...p, entries: [] }));
       updateChecked(() => ({}));
+      updateEdits(() => emptyShoppingEdits());
     }
   }
 
@@ -232,7 +275,7 @@ function Planner({ user, initial, onSignedOut }: { user: User; initial: Loaded; 
   }
 
   const worst: SaveStatus = (['failed', 'retrying', 'saving', 'saved'] as SaveStatus[]).find(
-    (s) => status.plan === s || status.checked === s,
+    (s) => status.plan === s || status.checked === s || status.edits === s,
   )!;
 
   return (
@@ -279,6 +322,7 @@ function Planner({ user, initial, onSignedOut }: { user: User; initial: Loaded; 
             onSet={onSet}
             onClear={onClear}
             newId={newId}
+            onView={viewRecipe}
           />
           <p className="muted">
             Pick a recipe to cook, or "Leftovers from" an earlier meal. Cook servings are the total made, including
@@ -290,14 +334,28 @@ function Planner({ user, initial, onSignedOut }: { user: User; initial: Loaded; 
         </>
       )}
       {tab === 'recipes' && (
-        <RecipesView recipes={recipes} plan={plan} onCreate={createRecipe} onUpdate={updateRecipe} onDelete={deleteRecipe} />
+        <RecipesView
+          key={openRecipe?.nonce ?? 'list'}
+          recipes={recipes}
+          plan={plan}
+          claudeEnabled={initial.claudeEnabled}
+          openRecipeId={openRecipe?.id}
+          onCreate={createRecipe}
+          onUpdate={updateRecipe}
+          onDelete={deleteRecipe}
+        />
       )}
       {tab === 'shop' && (
         <ShoppingListView
           list={shopping}
+          hidden={hidden}
           checked={checked}
           onToggle={(key) => updateChecked((c) => ({ ...c, [key]: !c[key] }))}
           onClearChecked={() => updateChecked(() => ({}))}
+          onHide={hideItem}
+          onUnhide={unhideItem}
+          onAddExtra={addExtra}
+          onDeleteExtra={deleteExtra}
         />
       )}
       {tab === 'cook' && <ScheduleView schedule={schedule} settings={plan.settings} />}

@@ -12,6 +12,11 @@ services:
     # Docker's nat rules bypass firewalld, so this really is open to the whole LAN; the
     # router must never port-forward it (docs/deploy.md). 5002: clinch has 5001 and 8001.
     ports: ["5002:3000"]
+    # Optional: Claude reads recipes out of photos and out of pages without recipe data.
+    # Put the key in ~/forkcast/.env on the box (one line: ANTHROPIC_API_KEY=sk-ant-...);
+    # compose reads .env next to this file. The key never goes in git or in the image.
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     # The SQLite database and its nightly backups. A named volume survives image updates,
     # `docker compose up -d`, Watchtower recreating the container, and reboots. Only
     # `docker compose down -v` or `docker volume rm` would delete it. Compose prefixes the

@@ -100,6 +100,23 @@ on the Wi-Fi could therefore create an account of their own, which gives them an
 nothing else. It is still not internet-safe: never port-forward 5002 on the router, and remember
 that Docker's published ports bypass firewalld, so firewalld rules will not close it.
 
+## Claude for recipe import (optional)
+
+Photo import, and URL import for pages that do not publish recipe data, call the Claude API from
+the server (`server/claude.ts`). Everything else works without it. To turn it on:
+
+```bash
+# on the box, once; the file is gitignored and never leaves the box
+printf 'ANTHROPIC_API_KEY=%s\n' 'sk-ant-...' > ~/forkcast/.env && chmod 600 ~/forkcast/.env
+bash ~/forkcast/scripts/deploy.sh          # recreates the container with the key in its environment
+curl -s -b 'forkcast_session=...' http://127.0.0.1:5002/api/import/status   # {"claude":true} when signed in
+```
+
+Simpler check: open Recipes → Import… in the app; the photo section says whether it is on. Cost is
+a few cents per import (`claude-opus-5-5`, one call per photo or page). To turn it off, delete the
+line from `.env` and run `deploy.sh` again. The key is read only by the server process; it is never
+sent to the browser, logged, or committed.
+
 ## Accounts, backups, restore, reset
 
 **First account.** After this version is deployed (and `deploy.sh` has applied the volume), open

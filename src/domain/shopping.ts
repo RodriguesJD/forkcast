@@ -1,8 +1,10 @@
 import { normalizeIngredientName, scaleIngredients } from './recipes';
 import { effectiveCookEntries } from './plan';
 import type {
+  ExtraShoppingItem,
   Quantity,
   RecipeIndex,
+  ShoppingEdits,
   ShoppingItem,
   ShoppingList,
   ShoppingSection,
@@ -160,4 +162,55 @@ function displayQuantity(baseTotal: number, preferred: Unit): Quantity {
 /** Flat list of all items, for tests and simple views. */
 export function allItems(list: ShoppingList): ShoppingItem[] {
   return list.sections.flatMap((s) => s.items);
+}
+
+// ---------- user edits on top of the generated list ----------
+
+export const EXTRA_KEY_PREFIX = 'extra:';
+
+export function emptyShoppingEdits(): ShoppingEdits {
+  return { extras: [], removed: [] };
+}
+
+export function extraItemKey(item: ExtraShoppingItem): string {
+  return EXTRA_KEY_PREFIX + item.id;
+}
+
+/**
+ * Layer the user's edits over a generated list: drop hidden items, add the
+ * hand-written ones to their sections (in store order). Pure; the generated
+ * list is never mutated, so un-hiding is just removing the key from `removed`.
+ */
+export function applyShoppingEdits(list: ShoppingList, edits: ShoppingEdits): ShoppingList {
+  const removed = new Set(edits.removed);
+  const bySection = new Map<StoreSection, ShoppingItem[]>();
+  for (const section of list.sections) {
+    bySection.set(
+      section.section,
+      section.items.filter((item) => !removed.has(item.key)),
+    );
+  }
+  for (const extra of edits.extras) {
+    const items = bySection.get(extra.section) ?? [];
+    items.push({
+      key: extraItemKey(extra),
+      name: extra.name,
+      quantity: extra.quantity,
+      section: extra.section,
+      sources: [],
+      unmergedConflict: false,
+    });
+    bySection.set(extra.section, items);
+  }
+  const sections: ShoppingSection[] = STORE_SECTION_ORDER.map((section) => ({
+    section,
+    items: bySection.get(section) ?? [],
+  })).filter((s) => s.items.length > 0);
+  return { ...list, sections };
+}
+
+/** Generated items the user has hidden this week, for a "show hidden" control. */
+export function hiddenShoppingItems(list: ShoppingList, edits: ShoppingEdits): ShoppingItem[] {
+  const removed = new Set(edits.removed);
+  return list.sections.flatMap((s) => s.items.filter((item) => removed.has(item.key)));
 }

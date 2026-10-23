@@ -70,6 +70,10 @@ export interface Recipe {
   /** Wall-clock minutes from start to table on the cook day. */
   totalMinutes: number;
   advancePrep: AdvancePrepStep[];
+  /** Cooking steps in order, for reading while cooking. Absent on the shipped sample recipes. */
+  instructions?: string[];
+  /** Where an imported recipe came from. */
+  sourceUrl?: string;
 }
 
 export type RecipeIndex = Record<string, Recipe>;
@@ -184,6 +188,26 @@ export interface ShoppingList {
   /** Normalized names that were excluded because they are pantry staples. */
   excludedStaples: string[];
   warnings: Warning[];
+}
+
+// ---------- shopping list edits ----------
+
+/** An item the user added by hand. Appears in the list under key `extra:<id>`. */
+export interface ExtraShoppingItem {
+  id: string;
+  name: string;
+  quantity: Quantity;
+  section: StoreSection;
+}
+
+/**
+ * The user's changes to the generated shopping list for this week. The list is
+ * always rebuilt from the plan; these are layered on top (see applyShoppingEdits).
+ */
+export interface ShoppingEdits {
+  extras: ExtraShoppingItem[];
+  /** Keys of generated items hidden from the list ("don't need this one"). */
+  removed: string[];
 }
 
 // ---------- schedule ----------

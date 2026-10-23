@@ -25,7 +25,21 @@ export const RECIPE_LIMITS = {
   maxAmount: 1_000_000,
   maxLeadDays: 6,
   textMaxLength: 200,
+  maxInstructions: 100,
+  instructionMaxLength: 2000,
+  urlMaxLength: 2000,
 } as const;
+
+/** http(s) only; anything else is not a recipe source. */
+export function isHttpUrl(value: string): boolean {
+  if (value.length > RECIPE_LIMITS.urlMaxLength) return false;
+  try {
+    const u = new URL(value);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
 
 export function isStoreSection(value: string): value is StoreSection {
   return (STORE_SECTION_ORDER as readonly string[]).includes(value);
@@ -172,6 +186,35 @@ export function parseRecipeInput(raw: unknown): RecipeParseResult {
     });
   }
 
+  const instructions: string[] = [];
+  const rawInstructions = raw.instructions === undefined || raw.instructions === null ? [] : raw.instructions;
+  if (!Array.isArray(rawInstructions)) {
+    errors.push('Instructions must be a list of steps.');
+  } else if (rawInstructions.length > RECIPE_LIMITS.maxInstructions) {
+    errors.push(`A recipe can have at most ${RECIPE_LIMITS.maxInstructions} steps.`);
+  } else {
+    rawInstructions.forEach((step: unknown, i: number) => {
+      if (typeof step !== 'string') {
+        errors.push(`Step ${i + 1} must be text.`);
+        return;
+      }
+      const text = step.trim().replace(/[ \t]+/g, ' ');
+      if (text.length === 0) return;
+      if (text.length > RECIPE_LIMITS.instructionMaxLength) errors.push(`Step ${i + 1} is too long.`);
+      else instructions.push(text);
+    });
+  }
+
+  let sourceUrl: string | undefined;
+  if (raw.sourceUrl !== undefined && raw.sourceUrl !== null) {
+    const u = cleanText(raw.sourceUrl);
+    if (u === null) errors.push('Source must be a web address.');
+    else if (u.length > 0) {
+      if (isHttpUrl(u)) sourceUrl = u;
+      else errors.push('Source must be a web address starting with http:// or https://.');
+    }
+  }
+
   if (errors.length > 0) return { ok: false, errors };
   return {
     ok: true,
@@ -182,6 +225,8 @@ export function parseRecipeInput(raw: unknown): RecipeParseResult {
       totalMinutes: totalMinutes as number,
       ingredients,
       advancePrep,
+      instructions,
+      ...(sourceUrl !== undefined ? { sourceUrl } : {}),
     },
   };
 }

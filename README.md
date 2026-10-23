@@ -8,9 +8,12 @@ All logic lives in `src/domain/` as pure TypeScript with no framework or
 browser dependencies, intended to be ported to Swift. Design decisions and
 known limits are recorded in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
-Everything a person enters (account, recipes, the week plan, shopping-list ticks) is stored
-in a SQLite database by a small Node server (`server/`), so the same state shows on every
-device after signing in. Nothing is kept in the browser but the session cookie.
+Everything a person enters (account, recipes with their steps, the week plan, shopping-list
+ticks and edits) is stored in a SQLite database by a small Node server (`server/`), so the same
+state shows on every device after signing in. Nothing is kept in the browser but the session
+cookie. Recipes can be typed in, imported from a web page (its structured data, no API needed),
+pasted as text, or read out of a photo; the last two use the Claude API when the server has a
+key (`docs/deploy.md`).
 
 ## Run
 
@@ -49,7 +52,8 @@ src/domain/     pure domain logic + tests (types, units, recipes, plan, shopping
 src/data/       sample recipes (copied into each new account; also test data)
 src/api/        the browser's HTTP client and the retrying save queue
 src/ui/         plain React views: sign-in, week grid (day cards on a phone, columns on a wide screen), recipes + form, shopping list, schedule, settings
-server/         Hono + node:sqlite: accounts, sessions, recipes, plan, backups (the only code that touches the DB)
+server/         Hono + node:sqlite: accounts, sessions, recipes, plan, backups (db.ts is the only code that touches the DB);
+                importRoutes.ts + claude.ts: recipe import (claude.ts is the only code that calls the Claude API)
 docs/           DECISIONS.md: the logic spec; deploy.md: how main reaches the box, backups, restore
 scripts/        deploy.sh (on the box), deploy_fedora.sh (over ssh), backup.sh (copy a snapshot out)
 Dockerfile      build stage -> node:22-alpine running dist-server/index.js; docker-compose.yml adds the data volume

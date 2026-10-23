@@ -1,4 +1,4 @@
-import type { Recipe, RecipeInput, WeekPlan } from '../domain';
+import type { Recipe, RecipeDraft, RecipeInput, ShoppingEdits, WeekPlan } from '../domain';
 
 /**
  * The browser's only way to the server. Every call is same-origin JSON with the
@@ -32,7 +32,10 @@ export interface User {
 export interface UserState {
   plan: WeekPlan;
   checked: Record<string, boolean>;
+  shoppingEdits: ShoppingEdits;
 }
+
+export type PhotoMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   let res: Response;
@@ -84,4 +87,12 @@ export const api = {
   savePlan: (plan: WeekPlan) => request<{ ok: true }>('PUT', '/api/plan', plan).then(() => undefined),
   saveChecked: (checked: Record<string, boolean>) =>
     request<{ ok: true }>('PUT', '/api/checked', checked).then(() => undefined),
+  saveShoppingEdits: (edits: ShoppingEdits) =>
+    request<{ ok: true }>('PUT', '/api/shopping-edits', edits).then(() => undefined),
+
+  importStatus: () => request<{ claude: boolean }>('GET', '/api/import/status'),
+  importUrl: (url: string) => request<{ draft: RecipeDraft }>('POST', '/api/import/url', { url }).then((r) => r.draft),
+  importText: (text: string) => request<{ draft: RecipeDraft }>('POST', '/api/import/text', { text }).then((r) => r.draft),
+  importPhoto: (image: string, mediaType: PhotoMediaType, notes?: string) =>
+    request<{ draft: RecipeDraft }>('POST', '/api/import/photo', { image, mediaType, notes }).then((r) => r.draft),
 };

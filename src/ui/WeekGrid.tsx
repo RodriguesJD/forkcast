@@ -22,6 +22,8 @@ interface Props {
   onSet: (entry: PlanEntry) => void;
   onClear: (slot: SlotRef) => void;
   newId: () => string;
+  /** Open a recipe's read view. */
+  onView?: (recipeId: string) => void;
 }
 
 const LEFTOVER_PREFIX = 'leftover:';
@@ -30,7 +32,7 @@ const LEFTOVER_PREFIX = 'leftover:';
  * The week as seven day columns on a wide screen and seven stacked day cards on
  * a phone. Same markup both ways; CSS decides the layout (see .week in index.css).
  */
-export function WeekGrid({ plan, recipes, warnings, days, onSet, onClear, newId }: Props) {
+export function WeekGrid({ plan, recipes, warnings, days, onSet, onClear, newId, onView }: Props) {
   const slots = activeSlotsInOrder(plan.settings);
   const cookEntries = plan.entries
     .filter((e): e is CookEntry => e.kind === 'cook' && recipes[e.recipeId] !== undefined)
@@ -150,6 +152,11 @@ export function WeekGrid({ plan, recipes, warnings, days, onSet, onClear, newId 
                       />
                       servings
                     </label>
+                  )}
+                  {entry?.kind === 'cook' && recipes[entry.recipeId] && onView && (
+                    <button type="button" className="link small" onClick={() => onView(entry.recipeId)}>
+                      view recipe
+                    </button>
                   )}
                   {entry?.kind === 'leftover' && (
                     <div className="leftover">
