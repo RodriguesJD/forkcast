@@ -239,7 +239,7 @@ function Planner({ user, initial, onSignedOut }: { user: User; initial: Loaded; 
     <div className="app">
       <header>
         <h1>Forkcast</h1>
-        <nav className="tabs">
+        <nav className="tabs" aria-label="Sections">
           {TABS.map((t) => (
             <button key={t} type="button" className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
               {t}
@@ -253,8 +253,8 @@ function Planner({ user, initial, onSignedOut }: { user: User; initial: Loaded; 
           {worst === 'failed' && 'Not saved'}
         </span>
         <span className="spacer" />
-        <span className="muted">{user.username}</span>
-        <button type="button" onClick={signOut}>
+        <span className="muted who">{user.username}</span>
+        <button type="button" className="signout" onClick={signOut}>
           Sign out
         </button>
       </header>

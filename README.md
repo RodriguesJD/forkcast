@@ -48,7 +48,7 @@ zsh scripts/deploy_fedora.sh aut@aut-macbookpro181  # off the LAN (Tailscale Mag
 src/domain/     pure domain logic + tests (types, units, recipes, plan, shopping, schedule, input validation)
 src/data/       sample recipes (copied into each new account; also test data)
 src/api/        the browser's HTTP client and the retrying save queue
-src/ui/         plain React views: sign-in, week grid, recipes + form, shopping list, schedule, settings
+src/ui/         plain React views: sign-in, week grid (day cards on a phone, columns on a wide screen), recipes + form, shopping list, schedule, settings
 server/         Hono + node:sqlite: accounts, sessions, recipes, plan, backups (the only code that touches the DB)
 docs/           DECISIONS.md: the logic spec; deploy.md: how main reaches the box, backups, restore
 scripts/        deploy.sh (on the box), deploy_fedora.sh (over ssh), backup.sh (copy a snapshot out)
