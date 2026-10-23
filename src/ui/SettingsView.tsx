@@ -29,10 +29,10 @@ export function SettingsView({ settings, onChange }: Props) {
         </select>
       </label>
 
-      <div>
+      <div className="slots">
         Active meal slots:{' '}
         {MEAL_SLOT_ORDER.map((slot) => (
-          <label key={slot} style={{ display: 'inline', marginRight: 12 }}>
+          <label key={slot}>
             <input type="checkbox" checked={settings.activeSlots.includes(slot)} onChange={() => toggleSlot(slot)} />{' '}
             {slot}
           </label>

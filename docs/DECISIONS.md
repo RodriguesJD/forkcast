@@ -336,3 +336,23 @@ database file that restores by being copied back.
 
 **Known limits.** Snapshots live in the same volume as the database until the
 script copies them elsewhere; losing the box loses both.
+
+## 23. Mobile-first layout with one breakpoint
+
+**Decision.** Styles are written for a phone first and one media query at
+720px adds the wide layout. The week grid is the same markup both ways: seven
+day cards that stack on a phone and become seven subgrid columns on a wide
+screen, so breakfast/lunch/dinner rows line up across days. Form controls are
+at least 16px on phones (iOS Safari zooms into anything smaller) with 40px tap
+targets, 32px on wide screens. The shopping list gets 24px checkboxes, sticky
+section headers and the recipe sources on their own line on phones. A cook
+entry whose recipe was deleted shows as "(deleted recipe)" in its picker, so
+the entry stays visible with its `unknown-recipe` warning and can be cleared.
+
+**Why.** The shopping list is used in the store and meals get picked on the
+couch; the phone is the primary screen and the laptop is the bonus. A select
+that silently showed "—" for a deleted recipe left an entry that could neither
+be seen nor removed.
+
+**Known limits.** No dark mode. CSS subgrid needs Safari 16+/Chrome 117+;
+older browsers show the columns without the row alignment.

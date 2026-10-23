@@ -180,33 +180,33 @@ export function RecipeForm({ recipe, defaultServings, onSave, onCancel }: Props)
 
       <h3>Ingredients</h3>
       <div className="ingredients">
-        <div className="ingredient head">
-          <span>Ingredient</span>
-          <span>Amount</span>
-          <span>Unit</span>
-          <span>Store section</span>
-          <span>Prep (optional)</span>
+        <div className="ingredient head" aria-hidden="true">
+          <span className="ing-name">Ingredient</span>
+          <span className="ing-amount">Amount</span>
+          <span className="ing-unit">Unit</span>
+          <span className="ing-section">Store section</span>
+          <span className="ing-prep">Prep (optional)</span>
           <span />
         </div>
         {draft.ingredients.map((ing, i) => (
           <div className="ingredient" key={ing.key}>
-            <input type="text" placeholder="yellow onion" aria-label={`Ingredient ${i + 1} name`} value={ing.name} onChange={(e) => patchIngredient(ing.key, { name: e.target.value })} />
-            <input type="number" min={0} step="any" inputMode="decimal" aria-label={`Ingredient ${i + 1} amount`} value={ing.amount} onChange={(e) => patchIngredient(ing.key, { amount: e.target.value })} />
-            <select aria-label={`Ingredient ${i + 1} unit`} value={ing.unit} onChange={(e) => patchIngredient(ing.key, { unit: e.target.value as Unit })}>
+            <input className="ing-name" type="text" placeholder="yellow onion" aria-label={`Ingredient ${i + 1} name`} value={ing.name} onChange={(e) => patchIngredient(ing.key, { name: e.target.value })} />
+            <input className="ing-amount" type="number" min={0} step="any" inputMode="decimal" placeholder="amount" aria-label={`Ingredient ${i + 1} amount`} value={ing.amount} onChange={(e) => patchIngredient(ing.key, { amount: e.target.value })} />
+            <select className="ing-unit" aria-label={`Ingredient ${i + 1} unit`} value={ing.unit} onChange={(e) => patchIngredient(ing.key, { unit: e.target.value as Unit })}>
               {ALL_UNITS.map((u) => (
                 <option key={u} value={u}>
                   {u}
                 </option>
               ))}
             </select>
-            <select aria-label={`Ingredient ${i + 1} section`} value={ing.section} onChange={(e) => patchIngredient(ing.key, { section: e.target.value as StoreSection })}>
+            <select className="ing-section" aria-label={`Ingredient ${i + 1} section`} value={ing.section} onChange={(e) => patchIngredient(ing.key, { section: e.target.value as StoreSection })}>
               {STORE_SECTION_ORDER.map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>
               ))}
             </select>
-            <input type="text" placeholder="diced" aria-label={`Ingredient ${i + 1} prep`} value={ing.prep} onChange={(e) => patchIngredient(ing.key, { prep: e.target.value })} />
+            <input className="ing-prep" type="text" placeholder="prep, e.g. diced" aria-label={`Ingredient ${i + 1} prep`} value={ing.prep} onChange={(e) => patchIngredient(ing.key, { prep: e.target.value })} />
             <button
               type="button"
               className="icon"
@@ -227,12 +227,12 @@ export function RecipeForm({ recipe, defaultServings, onSave, onCancel }: Props)
       <p className="muted">Things to do on an earlier day: marinate, thaw, soak. They show up on the cook schedule.</p>
       {draft.advancePrep.map((step, i) => (
         <div className="step" key={step.key}>
-          <input type="text" placeholder="Marinate the chicken" aria-label={`Step ${i + 1} description`} value={step.description} onChange={(e) => patchStep(step.key, { description: e.target.value })} />
-          <label>
+          <input className="step-desc" type="text" placeholder="Marinate the chicken" aria-label={`Step ${i + 1} description`} value={step.description} onChange={(e) => patchStep(step.key, { description: e.target.value })} />
+          <label className="step-days">
             <input type="number" min={1} max={6} step={1} inputMode="numeric" aria-label={`Step ${i + 1} days before`} value={step.leadDays} onChange={(e) => patchStep(step.key, { leadDays: e.target.value })} />{' '}
             day(s) before
           </label>
-          <label>
+          <label className="step-min">
             <input type="number" min={0} step={1} inputMode="numeric" aria-label={`Step ${i + 1} minutes`} value={step.activeMinutes} onChange={(e) => patchStep(step.key, { activeMinutes: e.target.value })} />{' '}
             min
           </label>
